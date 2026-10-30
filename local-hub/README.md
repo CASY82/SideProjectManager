@@ -13,7 +13,7 @@
  │    실패하면 이전 커밋으로 되돌려 다시 기동                  │
  │                                                          │
  │  Docker Compose 프로젝트 "sidehub"                        │
- │    postgres  redis  mysql  rabbitmq  mailpit  (공통)     │
+ │    postgres  redis  mysql  rabbitmq  (공통)              │
  │    api  web  ...                            (팀원 서비스) │
  └──────────────────────────────────────────────────────────┘
 ```
@@ -145,7 +145,6 @@ Local Hub 는 호스트의 `git` 을 그대로 쓰므로 공용 PC 에서 `git c
 | mysql | `localhost:3306` | `mysql:3306` | app / app, DB `app` |
 | redis | `localhost:6379` | `redis:6379` | - |
 | rabbitmq | `localhost:5672`, 관리 화면 `:15672` | `rabbitmq:5672` | app / app |
-| mailpit | SMTP `localhost:1025`, 웹 `:8025` | `mailpit:1025` | - |
 
 포트와 계정은 `local-hub/.env` 로 바꿀 수 있습니다 (`.env.example` 참고).
 
