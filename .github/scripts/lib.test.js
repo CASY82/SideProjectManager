@@ -106,3 +106,27 @@ test('디스코드는 2000자로 자르고 멘션을 막는다', async () => {
   assert.deepEqual(calls[0].body.allowed_mentions, { parse: [] });
   assert.equal(calls[1].body.text.length, 3000);
 });
+
+test('관련 기획 번호', () => {
+  assert.equal(lib.parsePlanRef('### 관련 기획\n\n#5\n\n### 마감일\n\n_No response_'), 5);
+  assert.equal(lib.parsePlanRef('### 관련 기획\n\nhttps://github.com/o/r/issues/7'), 7);
+  assert.equal(lib.parsePlanRef('본문\n기획: #12'), 12);
+  assert.equal(lib.parsePlanRef('관련 기획: 9번'), 9);
+  assert.equal(lib.parsePlanRef('### 관련 기획\n\n_No response_'), null);
+  assert.equal(lib.parsePlanRef('기획 의도: 사용자를 늘린다'), null);
+});
+
+test('기획 진행률', () => {
+  const plan = { number: 1, body: '' };
+  const issues = [
+    plan,
+    { number: 2, body: '기획: #1', state: 'closed' },
+    { number: 3, body: '기획: #1', state: 'open' },
+    { number: 4, body: '기획: #9', state: 'open' },
+    { number: 5, body: '기획: #1', state: 'open', pull_request: {} },
+  ];
+  const [p] = lib.planProgress([plan], issues);
+  assert.equal(p.done, 1);
+  assert.equal(p.total, 2);
+  assert.deepEqual(p.open.map((i) => i.number), [3]);
+});

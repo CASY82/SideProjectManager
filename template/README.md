@@ -36,7 +36,8 @@ git clone <이 저장소 주소>
 
 ## 일하는 방식
 
-- 할 일과 일정: GitHub Issues 의 **할 일** 양식으로 등록 (마감일을 적으면 자동 알림)
+- 기획: GitHub Issues 의 **기획** 양식으로 기획 의도와 내용을 등록
+- 할 일과 일정: **할 일** 양식으로 등록하고 "관련 기획" 에 기획 번호를 적기 (마감일을 적으면 자동 알림)
 - 브랜치·커밋·PR 규칙: [CONTRIBUTING.md](CONTRIBUTING.md)
 - 중요한 기술 결정: [docs/decisions](docs/decisions/)
 

@@ -1,8 +1,8 @@
-// 매주 월요일 지난 7일 동안 끝낸 일, 마감 지난 일, 담당자별 진행 중인 일을 이슈 하나로 정리한다.
+// 매주 월요일 지난 7일 동안 끝낸 일, 마감 지난 일, 기획별 진행률, 담당자별 진행 중인 일을 이슈 하나로 정리한다.
 // 지난주 요약 이슈는 닫는다. 웹훅 시크릿이 있으면 채팅방으로도 보낸다.
 
-const { todayKST, formatWeekly, notify } = require('./lib');
-const { listOpenIssues, hasLabel } = require('./github-helpers');
+const { todayKST, formatWeekly, notify, isPlanning, planProgress } = require('./lib');
+const { hasLabel } = require('./github-helpers');
 
 module.exports = async ({ github, context, core }) => {
   const repo = context.repo;
@@ -10,17 +10,17 @@ module.exports = async ({ github, context, core }) => {
   const weekAgoDate = new Date(Date.parse(`${today}T00:00:00+09:00`) - 7 * 86400000);
   const weekAgo = todayKST(weekAgoDate);
 
-  const recentlyUpdated = await github.paginate(github.rest.issues.listForRepo, {
-    ...repo, state: 'closed', since: weekAgoDate.toISOString(), per_page: 100,
-  });
-  const closed = recentlyUpdated.filter((i) =>
-    !i.pull_request
-    && !hasLabel(i, 'weekly-summary')
+  // 기획 진행률을 세려면 예전에 닫힌 할 일까지 봐야 해서 전체를 한 번에 가져온다
+  const all = (await github.paginate(github.rest.issues.listForRepo, { ...repo, state: 'all', per_page: 100 }))
+    .filter((i) => !i.pull_request && !hasLabel(i, 'weekly-summary'));
+  const closed = all.filter((i) =>
+    i.state === 'closed'
     && i.state_reason !== 'not_planned'
     && Date.parse(i.closed_at) >= weekAgoDate.getTime());
-  const open = await listOpenIssues(github, repo);
+  const open = all.filter((i) => i.state === 'open');
+  const plans = planProgress(open.filter(isPlanning), all);
 
-  const body = formatWeekly({ closed, open, today, weekAgo });
+  const body = formatWeekly({ closed, open, today, weekAgo, plans });
 
   const previous = await github.paginate(github.rest.issues.listForRepo, {
     ...repo, state: 'open', labels: 'weekly-summary', per_page: 100,

@@ -18,6 +18,12 @@ body:
         - [ ] API 응답 형식 확정
         - [ ] 테스트 추가
   - type: input
+    id: plan
+    attributes:
+      label: 관련 기획
+      description: 이 일이 속한 기획 이슈 번호 (예 #5). 적으면 기획 아래 하위 이슈로 연결돼요.
+      placeholder: "#5"
+  - type: input
     id: due
     attributes:
       label: 마감일

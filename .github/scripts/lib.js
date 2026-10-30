@@ -3,6 +3,7 @@
 const STATUS_LABELS = ['status: todo', 'status: in-progress', 'status: review'];
 const PRIORITY_LABELS = ['priority: P0', 'priority: P1', 'priority: P2'];
 const DUE_LABELS = ['due-soon', 'overdue'];
+const PLANNING_LABEL = 'type: planning';
 const DUE_SOON_DAYS = 2;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -49,6 +50,39 @@ function parsePriority(body) {
   const raw = parseSection(body, '우선순위');
   const m = raw && raw.match(/\bP([0-2])\b/);
   return m ? `priority: P${m[1]}` : null;
+}
+
+/**
+ * 이 이슈가 속한 기획 이슈 번호. 이슈 폼의 "### 관련 기획" 칸(#5, 5, 이슈 주소 모두 가능),
+ * 또는 일반 본문의 "기획: #5" / "관련 기획: #5" 줄. 없으면 null.
+ */
+function parsePlanRef(body) {
+  let raw = parseSection(body, '관련 기획');
+  if (raw === null && body) {
+    const m = body.match(/^\s*(?:관련\s*)?기획\s*[:：]\s*(.+)$/m);
+    raw = m ? m[1].trim() : null;
+  }
+  if (raw === null) return null;
+  const m = raw.match(/^(?:#|.*\/issues\/)?(\d+)\b/);
+  return m ? Number(m[1]) : null;
+}
+
+function isPlanning(issue) {
+  return (issue.labels || []).some((l) => (typeof l === 'string' ? l : l.name) === PLANNING_LABEL);
+}
+
+/**
+ * 기획마다 연결된 할 일이 몇 개고 몇 개 끝났는지.
+ * @param {object[]} plans 기획 이슈들
+ * @param {object[]} issues 연결 여부를 볼 전체 이슈 (열림·닫힘 모두)
+ * @returns {{plan: object, done: number, total: number, open: object[]}[]}
+ */
+function planProgress(plans, issues) {
+  return plans.map((plan) => {
+    const linked = issues.filter((i) => !i.pull_request && i.number !== plan.number && parsePlanRef(i.body) === plan.number);
+    const open = linked.filter((i) => i.state === 'open');
+    return { plan, done: linked.length - open.length, total: linked.length, open };
+  });
 }
 
 /** 한국 시간 기준 오늘 날짜 (YYYY-MM-DD). Actions 러너는 UTC 라서 따로 계산한다. */
@@ -130,9 +164,10 @@ function formatReminder(items, today) {
 
 /**
  * 주간 요약 본문.
- * @param {{closed: object[], open: object[], today: string, weekAgo: string}} data
+ * @param {{closed: object[], open: object[], today: string, weekAgo: string, plans?: object[]}} data
+ *   plans 는 planProgress 의 결과 (열린 기획만)
  */
-function formatWeekly({ closed, open, today, weekAgo }) {
+function formatWeekly({ closed, open, today, weekAgo, plans = [] }) {
   const out = [`## 주간 요약 (${weekAgo} ~ ${today})`, ''];
   out.push(`완료 ${closed.length}건 · 열린 이슈 ${open.length}건`, '');
 
@@ -147,9 +182,18 @@ function formatWeekly({ closed, open, today, weekAgo }) {
   for (const i of overdue) out.push(line(i, `마감 ${parseDueDate(i.body).date}`));
   out.push('');
 
+  out.push('### 기획 진행률');
+  if (plans.length === 0) out.push('- 진행 중인 기획 없음');
+  for (const { plan, done, total } of plans) {
+    const due = parseDueDate(plan.body)?.date;
+    const progress = total === 0 ? '연결된 할 일 없음' : `${done}/${total} 완료`;
+    out.push(`- #${plan.number} ${plan.title}: ${progress}${due ? ` · 마감 ${due}` : ''}`);
+  }
+  out.push('');
+
   out.push('### 담당자별 진행 중');
   const byPerson = new Map();
-  for (const i of open) {
+  for (const i of open.filter((x) => !isPlanning(x))) {
     const names = i.assignees && i.assignees.length ? i.assignees.map((a) => `@${a.login}`) : ['담당자 없음'];
     for (const n of names) {
       if (!byPerson.has(n)) byPerson.set(n, []);
@@ -196,7 +240,11 @@ module.exports = {
   STATUS_LABELS,
   PRIORITY_LABELS,
   DUE_LABELS,
+  PLANNING_LABEL,
   parseSection,
+  parsePlanRef,
+  isPlanning,
+  planProgress,
   parseDueDate,
   parsePriority,
   todayKST,

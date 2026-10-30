@@ -4,10 +4,12 @@
 //   담당자 지정·해제    → status: in-progress / status: todo
 //   이슈 닫힘           → 상태·마감 라벨 제거
 //   PR 에 "closes #12"  → 12번 이슈를 status: review 로, PR 이 머지 없이 닫히면 되돌림
+//   "관련 기획: #5"      → 5번 기획 이슈의 하위 이슈로 연결, 연결된 할 일이 모두 닫히면 기획 작성자에게 확인 요청
 
 const {
   STATUS_LABELS, PRIORITY_LABELS, DUE_LABELS,
   parseDueDate, parsePriority, todayKST, dueLabelFor, statusFor, linkedIssues,
+  parsePlanRef, isPlanning, planProgress,
 } = require('./lib');
 const { setLabelInGroup, hasLabel } = require('./github-helpers');
 
@@ -31,6 +33,7 @@ async function onIssue(github, repo, payload, core) {
     await setLabelInGroup(github, repo, issue, STATUS_LABELS, null);
     await setLabelInGroup(github, repo, issue, DUE_LABELS, null);
     core.info(`#${issue.number} 닫힘: 상태·마감 라벨 제거`);
+    if (issue.state_reason !== 'not_planned') await checkPlanDone(github, repo, issue, core);
     return;
   }
 
@@ -47,7 +50,77 @@ async function onIssue(github, repo, payload, core) {
   if (due && due.date === null && shouldWarnDue(action, payload, due)) {
     await github.rest.issues.createComment({ ...repo, issue_number: issue.number, body: INVALID_DUE_MESSAGE(due.raw) });
   }
+  if (['opened', 'edited', 'reopened'].includes(action)) await linkToPlan(github, repo, payload, core);
   core.info(`#${issue.number} ${action}: priority=${priority} due=${due?.date ?? due?.raw ?? '-'}`);
+}
+
+/** "관련 기획" 이 적힌 이슈를 그 기획의 하위 이슈(sub-issue)로 연결한다. 기획 번호를 바꾸면 옮긴다. */
+async function linkToPlan(github, repo, payload, core) {
+  const { issue, action } = payload;
+  if (isPlanning(issue)) return;
+  const ref = parsePlanRef(issue.body);
+  const before = action === 'edited' && payload.changes?.body ? parsePlanRef(payload.changes.body.from) : undefined;
+  if (action === 'edited' && before === ref) return;
+
+  if (before && before !== ref) {
+    try {
+      await github.request('DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issue',
+        { ...repo, issue_number: before, sub_issue_id: issue.id });
+    } catch (e) {
+      core.info(`#${before} 에서 하위 이슈 해제 실패 (${e.status}), 계속 진행`);
+    }
+  }
+  if (!ref || ref === issue.number) return;
+
+  let plan;
+  try {
+    ({ data: plan } = await github.rest.issues.get({ ...repo, issue_number: ref }));
+  } catch (e) {
+    if (e.status !== 404) throw e;
+    plan = null;
+  }
+  if (!plan || plan.pull_request) {
+    await github.rest.issues.createComment({ ...repo, issue_number: issue.number,
+      body: `관련 기획 #${ref} 을(를) 찾을 수 없어요. 기획 이슈 번호를 확인해 주세요.` });
+    return;
+  }
+  try {
+    await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues',
+      { ...repo, issue_number: ref, sub_issue_id: issue.id });
+    core.info(`#${issue.number} → 기획 #${ref} 하위 이슈로 연결`);
+  } catch (e) {
+    // 이미 연결돼 있으면 422. 하위 이슈 기능을 쓸 수 없는 환경이면 기획에 댓글로 남긴다
+    if (e.status === 422) return;
+    core.info(`하위 이슈 연결 실패 (${e.status}), 댓글로 대신함`);
+    await github.rest.issues.createComment({ ...repo, issue_number: ref,
+      body: `할 일 #${issue.number} ${issue.title} 이(가) 이 기획에 연결됐어요.` });
+  }
+}
+
+/** 기획에 연결된 할 일이 모두 닫혔으면 기획 작성자에게 확인을 요청한다 */
+async function checkPlanDone(github, repo, issue, core) {
+  if (isPlanning(issue)) return;
+  const ref = parsePlanRef(issue.body);
+  if (!ref) return;
+  let plan;
+  try {
+    ({ data: plan } = await github.rest.issues.get({ ...repo, issue_number: ref }));
+  } catch (e) {
+    if (e.status === 404) return;
+    throw e;
+  }
+  if (plan.state !== 'open' || plan.pull_request) return;
+
+  const all = await github.paginate(github.rest.issues.listForRepo, { ...repo, state: 'all', per_page: 100 });
+  const [{ done, total, open }] = planProgress([plan], all.map((i) => (i.number === issue.number ? issue : i)));
+  if (total === 0 || open.length > 0) {
+    core.info(`기획 #${ref}: ${done}/${total} 완료`);
+    return;
+  }
+  const author = plan.user?.login ? `@${plan.user.login} ` : '';
+  await github.rest.issues.createComment({ ...repo, issue_number: ref,
+    body: `${author}이 기획에 연결된 할 일 ${total}개가 모두 끝났어요. 기획 의도와 성공 기준대로 됐는지 확인하고, 괜찮으면 이 기획 이슈를 닫아 주세요.` });
+  core.info(`기획 #${ref}: 모든 할 일 완료, 작성자에게 확인 요청`);
 }
 
 /** 형식이 틀린 마감일 안내는 처음 열 때, 또는 마감일 칸을 바꿨을 때만 한다 */
