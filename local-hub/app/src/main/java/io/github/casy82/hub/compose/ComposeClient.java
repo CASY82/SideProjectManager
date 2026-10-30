@@ -26,11 +26,17 @@ public class ComposeClient {
         return run(List.of(), "up", "-d", "--build", "--no-deps", "--wait", service);
     }
 
+    /**
+     * 공통 서비스만 띄운다. docker-compose.yml 에서 프로필 이름과 서비스 이름을 같게 두었으므로 서비스 이름으로 지정한다.
+     * 서비스 이름 없이 up 하면 프로필이 없는 팀원 서비스까지 빌드하려다, 아직 clone 전이라 실패한다.
+     */
     public CommandResult upProfiles(List<String> profiles) {
         if (profiles.isEmpty()) {
             return new CommandResult(0, "");
         }
-        return run(profiles, "up", "-d");
+        List<String> args = new ArrayList<>(List.of("up", "-d"));
+        args.addAll(profiles);
+        return run(profiles, args.toArray(String[]::new));
     }
 
     public CommandResult ps() {

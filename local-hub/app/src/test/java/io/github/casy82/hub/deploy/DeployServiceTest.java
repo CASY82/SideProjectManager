@@ -28,14 +28,17 @@ class DeployServiceTest {
 
     FakeRunner runner;
     DeployService service;
+    List<String> events = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
         HubProperties props = new HubProperties(base.toString(), "workspace", List.of("docker-compose.yml"), "test",
                 List.of(), Duration.ofSeconds(60), Duration.ofMinutes(1), "",
-                List.of(new HubProperties.Service("api", "https://example.com/api.git", "main", null)));
+                new HubProperties.Issues(false, "", "", List.of("local-hub"), true),
+                List.of(new HubProperties.Service("api", "https://example.com/api.git", "main", null, null)));
         runner = new FakeRunner(base.resolve("workspace/api"));
-        service = new DeployService(props, new GitClient(runner), new ComposeClient(runner, props));
+        service = new DeployService(props, new GitClient(runner), new ComposeClient(runner, props),
+                List.of((svc, before, after) -> events.add(before.status() + "->" + after.status())));
     }
 
     @Test
@@ -88,6 +91,8 @@ class DeployServiceTest {
         runner.commands.clear();
         assertThat(service.sync("api", false)).isEqualTo(SyncResult.UNCHANGED);
         assertThat(runner.commands).noneMatch(c -> c.contains("compose"));
+        // 건너뛴 확인은 리스너에 알리지 않는다
+        assertThat(events).containsExactly("PENDING->RUNNING", "RUNNING->ROLLED_BACK");
 
         // 고친 커밋이 올라오면 다시 배포한다
         runner.remote = "ccccccc3";

@@ -74,6 +74,34 @@ services:
 
 `workspace/` 는 배포 전용입니다. 배포할 때 `git reset --hard` 를 하므로 그 안에서 직접 코드를 고치지 마세요.
 
+## 실패하면 GitHub 이슈로 알리기
+
+`hub.yml` 에서 켜면 배포가 실패하거나 롤백될 때 해당 저장소에 이슈가 자동으로 올라갑니다.
+
+```yaml
+hub:
+  issues:
+    enabled: true
+    token: ${HUB_GITHUB_TOKEN:}
+```
+
+```bash
+export HUB_GITHUB_TOKEN=github_pat_...   # Windows: set HUB_GITHUB_TOKEN=...
+./hub.sh
+```
+
+| 상황 | 이슈에 생기는 일 |
+| --- | --- |
+| 배포 실패·롤백 | `[Local Hub] <서비스> 배포 실패` 이슈 생성. 실패한 커밋, 상태, 빌드 출력 끝부분, 커밋 작성자 멘션 |
+| 이슈가 열린 채로 다른 커밋도 실패 | 같은 이슈에 댓글 추가 (서비스마다 이슈는 하나) |
+| 같은 실패가 계속됨 | 아무것도 하지 않음 (매 주기마다 댓글이 쌓이지 않음) |
+| 다음 배포 성공 | "정상으로 돌아왔어요" 댓글을 남기고 닫음 |
+
+- 이슈는 `local-hub`, `type: bug` 라벨로 올라가므로 일정 자동화(이슈 정리, 주간 요약)에도 그대로 잡힙니다.
+- 올릴 저장소는 `repo` 주소(`github.com/owner/repo`)에서 알아냅니다. 다른 저장소에 모으고 싶거나 GitHub 이 아닌 주소라면 서비스마다 `issue-repo: owner/repo` 를 적으세요.
+- 토큰: GitHub **Settings → Developer settings → Fine-grained tokens** 에서 대상 저장소를 고르고 **Issues: Read and write**, **Contents: Read-only** 권한으로 만듭니다. Contents 권한은 커밋 작성자를 찾는 데만 씁니다.
+- GitHub 에 연결할 수 없어도 배포는 그대로 진행되고, 다음 실패 때 다시 시도합니다.
+
 ## 대시보드와 API
 
 `http://<공용PC>:8090`

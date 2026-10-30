@@ -39,11 +39,13 @@ public class DeployService {
     private final Map<String, HubProperties.Service> services = new LinkedHashMap<>();
     private final Map<String, ServiceState> states = new ConcurrentHashMap<>();
     private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
+    private final List<DeployListener> listeners;
 
-    public DeployService(HubProperties props, GitClient git, ComposeClient compose) {
+    public DeployService(HubProperties props, GitClient git, ComposeClient compose, List<DeployListener> listeners) {
         this.props = props;
         this.git = git;
         this.compose = compose;
+        this.listeners = listeners;
         for (HubProperties.Service svc : props.services()) {
             services.put(svc.name(), svc);
             states.put(svc.name(), ServiceState.initial(svc.name(), svc.repo(), svc.branch()));
@@ -78,7 +80,19 @@ public class DeployService {
             return SyncResult.BUSY;
         }
         try {
-            return doSync(svc, force);
+            ServiceState before = states.get(name);
+            SyncResult result = doSync(svc, force);
+            if (result != SyncResult.UNCHANGED) {
+                ServiceState after = states.get(name);
+                for (DeployListener listener : listeners) {
+                    try {
+                        listener.onSynced(svc, before, after);
+                    } catch (RuntimeException e) {
+                        log.warn("[{}] {} 처리 중 오류", name, listener.getClass().getSimpleName(), e);
+                    }
+                }
+            }
+            return result;
         } finally {
             lock.unlock();
         }

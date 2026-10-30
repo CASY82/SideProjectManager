@@ -17,6 +17,15 @@ hub:
   # 값을 넣으면 "배포" 요청에 X-Hub-Token 헤더가 필요하다. 같은 네트워크에 모르는 사람이 있으면 설정할 것
   api-token: ""
 
+  # 배포가 실패하거나 롤백되면 GitHub 이슈를 자동으로 만들고, 다음 배포가 성공하면 닫는다
+  issues:
+    enabled: false
+    # Issues 읽기·쓰기 권한이 있는 토큰. 파일에 직접 적지 말고 환경 변수 HUB_GITHUB_TOKEN 으로 넘기는 것을 추천
+    token: ${HUB_GITHUB_TOKEN:}
+    labels: [local-hub, "type: bug"]
+    # 빌드 출력 끝부분을 이슈에 넣을지. 공개 저장소라면 출력에 비밀 값이 찍히지 않는지 확인할 것
+    include-output: true
+
   # 감시할 저장소 목록. name 은 docker-compose.apps.yml 의 서비스 이름과 같게 맞춘다.
   services: []
   # services:
@@ -27,3 +36,4 @@ hub:
   #     repo: git@github.com:your-team/web.git
   #     branch: develop
   #     compose-service: web   # compose 서비스 이름이 name 과 다를 때만
+  #     issue-repo: your-team/web  # 실패 이슈를 올릴 저장소. 비우면 repo 주소에서 알아낸다
