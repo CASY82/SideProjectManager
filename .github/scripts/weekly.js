@@ -7,6 +7,10 @@ const { hasLabel } = require('./github-helpers');
 module.exports = async ({ github, context, core }) => {
   const repo = context.repo;
   const today = process.env.TODAY || todayKST();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(today) || Number.isNaN(Date.parse(`${today}T00:00:00Z`))) {
+    // 잘못된 날짜로 돌리면 마감 라벨이 모두 지워지므로 멈춘다
+    throw new Error(`기준 날짜는 YYYY-MM-DD 형식이어야 합니다: ${today}`);
+  }
   const weekAgoDate = new Date(Date.parse(`${today}T00:00:00+09:00`) - 7 * 86400000);
   const weekAgo = todayKST(weekAgoDate);
 

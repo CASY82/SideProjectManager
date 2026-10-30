@@ -228,7 +228,8 @@ async function notify(text, env = process.env, fetchImpl = globalThis.fetch) {
     const res = await fetchImpl(env.SLACK_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      // 이슈 제목에 <!channel> 같은 문구가 있어도 전체 알림이 가지 않도록 Slack 제어 문자를 이스케이프한다
+      body: JSON.stringify({ text: text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }),
     });
     if (!res.ok) throw new Error(`Slack 웹훅 실패: ${res.status}`);
     sent.push('slack');

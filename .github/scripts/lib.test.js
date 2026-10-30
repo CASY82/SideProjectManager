@@ -107,6 +107,13 @@ test('디스코드는 2000자로 자르고 멘션을 막는다', async () => {
   assert.equal(calls[1].body.text.length, 3000);
 });
 
+test('슬랙으로 보낼 때 <!channel> 같은 멘션을 이스케이프한다', async () => {
+  const calls = [];
+  const fetch = async (url, opts) => { calls.push(JSON.parse(opts.body)); return { ok: true }; };
+  await lib.notify('#3 <!channel> 확인 & 배포', { SLACK_WEBHOOK_URL: 's' }, fetch);
+  assert.equal(calls[0].text, '#3 &lt;!channel&gt; 확인 &amp; 배포');
+});
+
 test('관련 기획 번호', () => {
   assert.equal(lib.parsePlanRef('### 관련 기획\n\n#5\n\n### 마감일\n\n_No response_'), 5);
   assert.equal(lib.parsePlanRef('### 관련 기획\n\nhttps://github.com/o/r/issues/7'), 7);
