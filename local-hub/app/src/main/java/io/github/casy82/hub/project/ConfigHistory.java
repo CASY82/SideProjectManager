@@ -122,7 +122,9 @@ public class ConfigHistory {
 
     private CommandResult git(String... args) {
         List<String> cmd = new ArrayList<>(List.of("git", "-c", "user.name=Local Hub", "-c", "user.email=hub@localhost",
-                "-c", "core.quotepath=false"));
+                "-c", "core.quotepath=false",
+                // 사용자 전역 설정에 서명이 켜져 있으면 커밋이 실패하므로 끈다
+                "-c", "commit.gpgsign=false"));
         cmd.addAll(List.of(args));
         return runner.run(dir, cmd);
     }

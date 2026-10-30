@@ -111,6 +111,14 @@ class ProjectStoreTest {
     }
 
     @Test
+    void 옵션처럼_보이는_고정_ref_는_거절한다() {
+        store.create("shop", null);
+        store.saveFile("shop", "project.yml", WITH_API, "api 추가");
+        assertThatThrownBy(() -> store.setPin("shop", "api", "--output=x", "x"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void 없는_버전_id_는_거절한다() {
         store.create("shop", null);
         assertThatThrownBy(() -> store.history("shop").diff("--output=/tmp/x"))

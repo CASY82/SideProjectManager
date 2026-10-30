@@ -30,6 +30,19 @@ public class GitClient {
                 .orThrow("git clone " + repo);
     }
 
+    /**
+     * project.yml 에서 repo 주소를 바꾸면 이미 받아 둔 workspace 의 origin 도 새 주소로 바꾼다.
+     * @return 주소를 바꿨으면 true
+     */
+    public boolean ensureRemote(Path dir, String repo) {
+        CommandResult r = runner.run(dir, List.of("git", "remote", "get-url", "origin"));
+        if (r.ok() && r.output().strip().equals(repo)) {
+            return false;
+        }
+        runner.run(dir, List.of("git", "remote", "set-url", "origin", repo)).orThrow("git remote set-url");
+        return true;
+    }
+
     /** 브랜치와 태그를 가져온다. 태그는 "이 버전으로 고정" 에 쓴다 */
     public void fetch(Path dir, String branch) {
         runner.run(dir, List.of("git", "fetch", "--prune", "--tags", "--force", "origin",

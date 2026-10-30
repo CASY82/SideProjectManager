@@ -56,15 +56,23 @@ public class DeployService {
      */
     public SyncResult sync(String projectId, String serviceName, boolean force) {
         ProjectRegistry.Project project = registry.get(projectId).orElse(null);
-        ServiceConfig svc = project == null ? null : project.config().service(serviceName).orElse(null);
-        if (svc == null) {
+        if (project == null || project.config().service(serviceName).isEmpty()) {
             return SyncResult.UNKNOWN;
         }
         ReentrantLock lock = project.locks().get(serviceName);
-        if (!lock.tryLock()) {
+        // 주기 확인은 겹치면 건너뛰지만, force(설정 저장·다시 배포)는 버리면 바뀐 설정이 반영되지 않으므로 앞 작업을 기다린다
+        if (force) {
+            lock.lock();
+        } else if (!lock.tryLock()) {
             return SyncResult.BUSY;
         }
         try {
+            // 기다리는 동안 설정이 바뀌었을 수 있으니 잠금을 잡은 뒤 다시 읽는다
+            project = registry.get(projectId).orElse(null);
+            ServiceConfig svc = project == null ? null : project.config().service(serviceName).orElse(null);
+            if (svc == null) {
+                return SyncResult.UNKNOWN;
+            }
             ServiceState before = project.states().get(serviceName);
             SyncResult result = doSync(project, svc, force);
             if (result != SyncResult.UNCHANGED && result != SyncResult.WAITING) {
@@ -100,6 +108,9 @@ public class DeployService {
         CommitInfo target;
         try {
             if (git.isCloned(dir)) {
+                if (git.ensureRemote(dir, svc.repo())) {
+                    log.info("[{}] 저장소 주소 변경: {}", tag, svc.repo());
+                }
                 git.fetch(dir, svc.branch());
                 previous = git.head(dir);
                 String wanted = git.resolve(dir, targetRef);

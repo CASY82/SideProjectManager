@@ -86,6 +86,8 @@ const time = t => t ? new Date(t).toLocaleString() : '-';
 const short = sha => sha ? sha.slice(0, 7) : '';
 const commit = c => c ? `<code>${esc(short(c.sha))}</code> ${esc(c.subject)} <span class="muted">· ${esc(c.author)}</span>` : '<span class="muted">-</span>';
 const enc = encodeURIComponent;
+// onclick="f(...)" 안에 넣는 문자열 인자. esc 만 쓰면 HTML 이 &#39; 를 ' 로 되돌려 따옴표를 빠져나갈 수 있다 (태그 이름 등)
+const arg = s => esc(JSON.stringify(String(s ?? '')));
 const $ = id => document.getElementById(id);
 
 function route() {
@@ -150,11 +152,11 @@ function serviceCard(p, s) {
       ${s.pin ? `<span class="badge pin" title="브랜치 최신 대신 이 버전으로 고정돼 있어요">📌 ${esc(s.pin)} 고정</span>`
               : `<span class="muted">${esc(s.branch)} 최신 따라감</span>`}
       <div class="actions">
-        <button onclick="deploy('${esc(p.id)}','${esc(s.name)}',false)">지금 확인</button>
-        <button onclick="deploy('${esc(p.id)}','${esc(s.name)}',true)">다시 배포</button>
-        <button onclick="toggleVersions('${esc(key)}')">${ui.openVersions.has(key) ? '버전 닫기' : '버전 고정'}</button>
-        <button onclick="showLogs('${esc(p.id)}','${esc(s.name)}')">컨테이너 로그</button>
-        <button onclick="toggleOutput('${esc(key)}')">${ui.openOutput.has(key) ? '출력 닫기' : '배포 출력'}</button>
+        <button onclick="deploy(${arg(p.id)},${arg(s.name)},false)">지금 확인</button>
+        <button onclick="deploy(${arg(p.id)},${arg(s.name)},true)">다시 배포</button>
+        <button onclick="toggleVersions(${arg(key)})">${ui.openVersions.has(key) ? '버전 닫기' : '버전 고정'}</button>
+        <button onclick="showLogs(${arg(p.id)},${arg(s.name)})">컨테이너 로그</button>
+        <button onclick="toggleOutput(${arg(key)})">${ui.openOutput.has(key) ? '출력 닫기' : '배포 출력'}</button>
       </div>
     </div>
     <div class="muted small">${esc(s.repo)}</div>
@@ -198,7 +200,7 @@ async function loadVersions(id, name) {
   try {
     const v = await api(`projects/${enc(id)}/services/${enc(name)}/versions`);
     if (!el()) return;
-    const pinBtn = (ref, label = '고정') => `<button onclick="pin('${esc(id)}','${esc(name)}','${esc(ref)}')">${label}</button>`;
+    const pinBtn = (ref, label = '고정') => `<button onclick="pin(${arg(id)},${arg(name)},${arg(ref)})">${label}</button>`;
     const row = (ref, text, extra = '') => `<tr><td><code>${esc(ref)}</code></td><td>${text}</td><td class="muted">${extra}</td><td>${pinBtn(ref)}</td></tr>`;
     el().innerHTML = `
       <div class="row">
@@ -206,8 +208,8 @@ async function loadVersions(id, name) {
         <span class="muted small">${v.pin ? `지금 <code>${esc(v.pin)}</code> 로 고정됨` : `지금은 ${esc(v.branch)} 브랜치 최신을 따라가요`}</span>
         <div class="actions">
           <input id="ref-${esc(id)}-${esc(name)}" placeholder="커밋 해시나 태그" size="16">
-          <button onclick="pin('${esc(id)}','${esc(name)}', $('ref-${esc(id)}-${esc(name)}').value)">입력한 버전으로 고정</button>
-          ${v.pin ? `<button onclick="unpin('${esc(id)}','${esc(name)}')">고정 풀기</button>` : ''}
+          <button onclick="pin(${arg(id)},${arg(name)}, $('ref-${esc(id)}-${esc(name)}').value)">입력한 버전으로 고정</button>
+          ${v.pin ? `<button onclick="unpin(${arg(id)},${arg(name)})">고정 풀기</button>` : ''}
         </div>
       </div>
       <div class="muted small" style="margin:4px 0 8px">고정하면 브랜치에 새 커밋이 올라와도 그 버전을 유지해요. 고정·해제도 설정 버전에 기록돼요.</div>
@@ -256,7 +258,7 @@ async function renderSettings(p, el) {
     <h3>프로젝트 삭제</h3>
     <div class="card row">
       <span class="muted">설정·버전 기록·작업 공간을 지우고 이 프로젝트의 컨테이너를 내려요. 공통 서비스와 볼륨은 남아요.</span>
-      <div class="actions"><button class="danger" onclick="removeProject('${esc(p.id)}')">삭제</button></div>
+      <div class="actions"><button class="danger" onclick="removeProject(${arg(p.id)})">삭제</button></div>
     </div>`;
   try { $('editor').value = (await api(`projects/${enc(p.id)}/files/${ui.file}`)).content; }
   catch (e) { $('editor').value = ''; $('save-result').innerHTML = `<div class="error">${esc(e.message)}</div>`; }
@@ -306,7 +308,7 @@ async function renderVersions(p, el) {
   el.innerHTML = `<div class="muted small" style="margin-bottom:8px">project.yml · compose.yml · 버전 고정이 바뀔 때마다 기록돼요. 행을 누르면 바뀐 내용을 볼 수 있어요.</div>
     <div class="table"><table>
       <tr><th>버전</th><th>내용</th><th>시각</th></tr>
-      ${versions.map((v, i) => `<tr class="click ${ui.selectedVersion === v.sha ? 'sel' : ''}" onclick="selectVersion('${esc(v.sha)}')">
+      ${versions.map((v, i) => `<tr class="click ${ui.selectedVersion === v.sha ? 'sel' : ''}" onclick="selectVersion(${arg(v.sha)})">
         <td><code>${esc(short(v.sha))}</code>${i === 0 ? ' <span class="badge RUNNING">현재</span>' : ''}</td>
         <td>${esc(v.message)}</td><td class="muted">${time(v.date)}</td></tr>`).join('')}
     </table></div>
@@ -323,7 +325,7 @@ async function showVersion(id, sha, current) {
     const d = await api(`projects/${enc(id)}/config-versions/${sha}`);
     el.innerHTML = `<h3>버전 <code>${esc(short(sha))}</code></h3>
       ${sha !== current && d.diffWithCurrent.trim() ? `<div class="row"><span class="muted">이 버전의 설정으로 돌아가면 새 버전으로 기록되고 서비스를 다시 배포해요. 이력은 지워지지 않아요.</span>
-        <div class="actions"><button class="primary" onclick="restore('${esc(id)}','${esc(sha)}')">이 버전으로 되돌리기</button></div></div>` : ''}
+        <div class="actions"><button class="primary" onclick="restore(${arg(id)},${arg(sha)})">이 버전으로 되돌리기</button></div></div>` : ''}
       <div class="grid2">
         <div><div class="muted small" style="margin-top:10px">이 버전에서 바뀐 내용</div><pre class="diff">${diffHtml(d.changes)}</pre></div>
         <div><div class="muted small" style="margin-top:10px">이 버전 → 현재 설정</div><pre class="diff">${diffHtml(d.diffWithCurrent)}</pre></div>

@@ -208,6 +208,47 @@ class DeployServiceTest {
         assertThat(events).containsExactly("PENDING->RUNNING");
     }
 
+    @Test
+    void repo_주소를_바꾸면_받아_둔_저장소의_origin_도_바꾼다() throws Exception {
+        runner.remote = "aaaaaaa1";
+        sync(false);
+        assertThat(runner.commands).noneMatch(c -> c.startsWith("git remote set-url"));
+
+        Files.writeString(base.resolve("data/projects/shop/project.yml"), """
+                services:
+                  - name: api
+                    repo: https://example.com/api-v2.git
+                """);
+        registry.reload("shop");
+        runner.remote = "bbbbbbb2";
+
+        assertThat(sync(false)).isEqualTo(SyncResult.DEPLOYED);
+        assertThat(runner.origin).isEqualTo("https://example.com/api-v2.git");
+        assertThat(runner.commands).anyMatch(c -> c.equals("git remote set-url origin https://example.com/api-v2.git"));
+    }
+
+    @Test
+    void 다른_확인이_돌고_있으면_주기_확인은_건너뛰고_force_는_기다렸다가_실행한다() throws Exception {
+        runner.remote = "aaaaaaa1";
+        sync(false);
+        var lock = registry.get("shop").orElseThrow().locks().get("api");
+        lock.lock();
+        try {
+            // 잠금은 재진입이 되므로 다른 스레드에서 부른다
+            assertThat(java.util.concurrent.CompletableFuture.supplyAsync(() -> sync(false)).get(5,
+                    java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(SyncResult.BUSY);
+            var forced = java.util.concurrent.CompletableFuture.supplyAsync(() -> sync(true));
+            Thread.sleep(200);
+            assertThat(forced).isNotDone();
+            lock.unlock();
+            assertThat(forced.get(5, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(SyncResult.DEPLOYED);
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
+    }
+
     /** git 저장소 하나와 docker compose 를 흉내 낸다. */
     static class FakeRunner implements CommandRunner {
 
@@ -217,6 +258,7 @@ class DeployServiceTest {
         final Map<String, String> tags = new HashMap<>();
         String remote;
         String head;
+        String origin = "https://example.com/api.git";
         boolean cloneFails;
 
         FakeRunner(Path repoDir) {
@@ -240,6 +282,13 @@ class DeployServiceTest {
                 return ok("");
             }
             if (cmd.startsWith("git fetch")) {
+                return ok("");
+            }
+            if (cmd.equals("git remote get-url origin")) {
+                return ok(origin + "\n");
+            }
+            if (cmd.startsWith("git remote set-url origin ")) {
+                origin = command.get(4);
                 return ok("");
             }
             if (cmd.equals("git rev-parse HEAD")) {
