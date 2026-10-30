@@ -1,0 +1,21 @@
+# 앱 자체 설정. 서비스 목록 등 팀마다 바뀌는 값은 local-hub/hub.yml 에 둔다.
+spring:
+  application:
+    name: local-hub
+  config:
+    import: optional:file:./hub.yml
+  threads:
+    virtual:
+      enabled: true
+  main:
+    banner-mode: off
+
+server:
+  port: ${HUB_PORT:8090}
+  tomcat:
+    threads:
+      max: 20
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss} %-5level %logger{0} - %msg%n"

@@ -1,0 +1,37 @@
+# Local Hub 설정. hub.sh(hub.cmd) 를 처음 실행하면 이 파일이 hub.yml 로 복사된다.
+# hub.yml 은 팀마다 다르므로 git 에 올리지 않는다.
+# 프로젝트와 서비스(감시할 저장소)는 여기가 아니라 대시보드(http://localhost:8090)에서 추가·관리한다.
+hub:
+  # 프로젝트 설정·버전 기록·작업 공간·배포 이력을 두는 곳. 백업하려면 이 폴더를 복사하면 된다
+  data-dir: data
+  # 공통 서비스의 docker compose 프로젝트 이름. 각 프로젝트는 "sidehub-<프로젝트 id>" 로 뜬다
+  project-name: sidehub
+  # 공통 서비스와 모든 프로젝트가 함께 쓰는 docker 네트워크. 바꾸면 .env 의 HUB_NETWORK 도 맞춘다
+  network: sidehub
+  # 공통 서비스 compose 파일
+  compose-files:
+    - docker-compose.yml
+  # 앱이 시작할 때 함께 띄울 공통 서비스 (docker-compose.yml 의 profiles)
+  infra-profiles:
+    - postgres
+    - redis
+  # 새 커밋을 확인하는 주기 (30s, 1m, 5m ...)
+  poll-interval: 60s
+  # git/docker 명령 하나가 이 시간을 넘기면 실패로 본다
+  command-timeout: 15m
+  # 변경 요청(배포, 설정 저장, 프로젝트 추가·삭제)을 보호하는 토큰.
+  # 비워 두면 Hub PC 자신(localhost)에서만 변경할 수 있다. 다른 PC 에서도 쓰려면 긴 임의 문자열을 넣고
+  # 대시보드 왼쪽 아래 "API 토큰" 칸이나 X-Hub-Token 헤더로 보낸다. 조회(GET)는 토큰 없이 된다
+  api-token: ""
+  # localhost·IP 주소 말고 호스트 이름으로 대시보드를 열 때만 적는다 (예: hub-pc.local). 모르는 이름은 막는다
+  allowed-hosts: []
+
+  # 배포가 실패하거나 롤백되면 GitHub 이슈를 자동으로 만들고, 다음 배포가 성공하면 닫는다
+  issues:
+    enabled: false
+    # Issues 읽기·쓰기 권한이 있는 토큰. 파일에 직접 적지 말고 환경 변수 HUB_GITHUB_TOKEN 으로 넘기는 것을 추천
+    token: ${HUB_GITHUB_TOKEN:}
+    labels: [local-hub, "type: bug"]
+    # 빌드 출력 끝부분을 이슈에 넣을지. 공개 저장소라면 출력에 비밀 값이 찍히지 않는지 확인할 것
+    include-output: true
+

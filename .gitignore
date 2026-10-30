@@ -1,7 +1,7 @@
 # Local Hub 실행 시 생기는 것들
 local-hub/hub.yml
 local-hub/.env
-local-hub/workspace/
+local-hub/data/
 
 # 빌드 결과
 target/
