@@ -1,0 +1,13 @@
+[
+  { "name": "type: task", "color": "1d76db", "description": "할 일" },
+  { "name": "type: bug", "color": "d73a4a", "description": "버그" },
+  { "name": "status: todo", "color": "ededed", "description": "아직 시작 안 함" },
+  { "name": "status: in-progress", "color": "fbca04", "description": "담당자가 정해져 진행 중" },
+  { "name": "status: review", "color": "0e8a16", "description": "PR 리뷰 중" },
+  { "name": "priority: P0", "color": "b60205", "description": "긴급" },
+  { "name": "priority: P1", "color": "d93f0b", "description": "높음" },
+  { "name": "priority: P2", "color": "c5def5", "description": "보통" },
+  { "name": "due-soon", "color": "f9d0c4", "description": "마감 2일 이내" },
+  { "name": "overdue", "color": "b60205", "description": "마감 지남" },
+  { "name": "weekly-summary", "color": "5319e7", "description": "자동 생성된 주간 요약" }
+]

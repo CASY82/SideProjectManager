@@ -1,0 +1,44 @@
+# 이슈·PR 이벤트마다 상태/우선순위/마감 라벨을 맞춘다. 로직은 .github/scripts/triage.js
+name: 이슈 자동 정리
+
+on:
+  issues:
+    types: [opened, edited, reopened, closed, assigned, unassigned]
+  pull_request:
+    types: [opened, reopened, edited, ready_for_review, converted_to_draft, closed]
+
+permissions:
+  issues: write
+  pull-requests: read
+  contents: read
+
+concurrency:
+  group: issue-automation-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const run = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/triage.js`);
+            await run({ github, context, core });
+
+  # 선택: GitHub Projects 보드에 새 이슈를 자동으로 추가한다.
+  # 저장소 변수 PROJECT_URL 과 시크릿 PROJECT_TOKEN(project 권한이 있는 토큰)을 설정해야 동작한다.
+  # Projects 의 기본 "Auto-add to project" 워크플로를 쓰면 이 단계는 없어도 된다.
+  add-to-project:
+    if: github.event_name == 'issues' && github.event.action == 'opened' && vars.PROJECT_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/add-to-project@v1.0.2
+        with:
+          project-url: ${{ vars.PROJECT_URL }}
+          github-token: ${{ secrets.PROJECT_TOKEN }}

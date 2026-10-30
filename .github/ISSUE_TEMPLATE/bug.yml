@@ -1,0 +1,33 @@
+name: 버그
+description: 잘못 동작하는 것을 알립니다.
+labels: ["type: bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 무슨 일이 있었나요
+      description: 기대한 동작과 실제 동작
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      placeholder: |
+        1. ...
+        2. ...
+  - type: input
+    id: due
+    attributes:
+      label: 마감일
+      description: YYYY-MM-DD 형식. 비워 두면 마감 알림을 보내지 않습니다.
+      placeholder: "2026-11-15"
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      options:
+        - P0 - 긴급
+        - P1 - 높음
+        - P2 - 보통
+      default: 1

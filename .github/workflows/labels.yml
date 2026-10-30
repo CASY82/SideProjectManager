@@ -1,0 +1,26 @@
+# .github/labels.json 이 바뀌면 저장소 라벨을 맞춘다. 처음 한 번은 Actions 탭에서 직접 실행하면 된다.
+name: 라벨 동기화
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/labels.json]
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const run = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/labels.js`);
+            await run({ github, context, core });
