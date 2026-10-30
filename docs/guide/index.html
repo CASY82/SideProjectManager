@@ -209,7 +209,7 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
         <li><p><b>Settings → Collaborators → Add people</b>로 팀원을 초대합니다. 개발자는 <b>Write</b>, 기획자는 <b>Triage</b>(이슈 작성·라벨·닫기만 가능)면 됩니다.</p></li>
         <li><p><b>Settings → Branches</b>에서 <code>main</code> 보호(PR 필수, CI 통과 필수)를 켭니다.</p></li>
         <li><p>(선택) 채팅방 알림을 받으려면 <b>Settings → Secrets</b>에 <code>DISCORD_WEBHOOK_URL</code> 또는 <code>SLACK_WEBHOOK_URL</code>을 넣습니다(<a href="#tasks-setup">처음 설정</a>).</p></li>
-        <li><p>(선택) 보드로 보고 싶으면 <a href="#tasks-board">칸반 보드</a>를 만들고, 공용 PC가 있으면 <a href="#hub-setup">Local Hub</a>를 띄워 대시보드에서 <a href="#hub-project">프로젝트를 등록</a>하고 <a href="#hub-issues">실패 이슈 알림</a>을 켭니다.</p></li>
+        <li><p>(선택) 보드로 보고 싶으면 <a href="#tasks-board">칸반 보드</a>를 만들고, 공용 PC가 있으면 <a href="#hub-setup">Local Hub</a>를 띄워 <a href="#hub-api">API 토큰</a>을 정해 팀에 알리고, 대시보드에서 <a href="#hub-project">프로젝트를 등록</a>하고 <a href="#hub-issues">실패 이슈 알림</a>을 켭니다.</p></li>
       </ol>
 
       <h3 id="manage-planner">기획자: 기획 등록과 확인</h3>
@@ -277,7 +277,7 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
 <pre><code>cd local-hub
 ./hub.sh             # Windows 는 hub.cmd
 ./hub.sh --rebuild   # 이 저장소를 pull 받은 뒤 앱을 다시 빌드할 때</code></pre></li>
-        <li><p><code>hub.yml</code>에는 PC 전체에 적용되는 공통 설정만 있습니다. 보통은 함께 띄울 공통 서비스(<code>infra-profiles</code>)만 확인하면 됩니다. 감시할 저장소는 여기가 아니라 대시보드에서 프로젝트별로 등록합니다. 이 파일은 팀마다 다르므로 git에 올리지 않습니다.</p>
+        <li><p><code>hub.yml</code>에는 PC 전체에 적용되는 공통 설정만 있습니다. 보통은 함께 띄울 공통 서비스(<code>infra-profiles</code>)만 확인하면 됩니다. 감시할 저장소는 여기가 아니라 대시보드에서 프로젝트별로 등록합니다. 팀원들이 각자 PC에서 배포 버튼을 누르거나 설정을 고치게 하려면 <code>api-token</code>도 꼭 넣으세요(<a href="#hub-api">API와 토큰</a>). 이 파일은 팀마다 다르므로 git에 올리지 않습니다.</p>
 <pre><code>hub:
   data-dir: data                    # 프로젝트 설정·버전 기록·작업 공간·배포 이력. 백업은 이 폴더 복사
   project-name: sidehub             # 공통 서비스의 compose 프로젝트 이름. 각 프로젝트는 sidehub-&lt;id&gt;
@@ -285,7 +285,8 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
   infra-profiles: [postgres, redis] # 시작할 때 같이 띄울 공통 서비스
   poll-interval: 60s                # 새 커밋 확인 주기 (30s, 1m, 5m ...)
   command-timeout: 15m              # git/docker 명령 하나가 이보다 오래 걸리면 실패
-  api-token: ""                     # 넣으면 변경 요청에 X-Hub-Token 헤더 필요
+  api-token: ""                     # 비우면 Hub PC 자신에서만 변경 가능. 팀이 함께 쓰려면 긴 임의 문자열을 넣을 것
+  allowed-hosts: []                 # hub-pc.local 처럼 호스트 이름으로 접속할 때만 적음
   issues:
     enabled: false                  # 실패를 GitHub 이슈로 알리기 (아래 참고)</code></pre></li>
         <li><p>브라우저에서 <code>http://&lt;공용PC IP&gt;:8090</code>을 열고, 아래 순서로 첫 프로젝트를 등록합니다.</p></li>
@@ -314,7 +315,7 @@ services:
     # issue-repo: my-team/shop     # 실패 이슈를 다른 저장소에 모을 때만</code></pre>
       <figure>
         <img src="img/24b-settings-project.png" alt="설정 탭에서 project.yml을 편집하는 화면. 아래에 프로젝트 삭제 상자가 있다." loading="lazy">
-        <figcaption><code>project.yml</code> 편집기와 그 아래 <b>프로젝트 삭제</b>. 서비스 <code>name</code>은 <code>compose.yml</code>의 서비스 이름과 같아야 합니다(다르면 <code>compose-service</code>로 지정).</figcaption>
+        <figcaption><code>project.yml</code> 편집기와 그 아래 <b>프로젝트 삭제</b>. 서비스 <code>name</code>은 <code>compose.yml</code>의 서비스 이름과 같아야 합니다(다르면 <code>compose-service</code>로 지정). <code>repo</code>, <code>branch</code>, <code>compose-service</code>가 <code>-</code>로 시작하거나 <code>issue-repo</code>가 <code>owner/repo</code> 형식이 아니면 저장되지 않습니다.</figcaption>
       </figure></li>
         <li><p><code>compose.yml</code>로 바꿔 같은 이름의 서비스를 정의하고 저장합니다. 저장하면 바로 저장소를 받아 빌드·기동합니다. 저장소는 <code>workspace/&lt;서비스 이름&gt;</code>에 받아지므로 <code>build</code>를 그 경로로 둡니다. 맨 아래 <code>networks</code> 부분은 그대로 두세요. 공통 서비스와 같은 네트워크에 붙어서 DB 주소를 <code>localhost</code>가 아니라 <code>postgres:5432</code>로 씁니다.</p>
 <pre><code># compose.yml
@@ -525,7 +526,25 @@ hub:
           <tr><td>GET</td><td><code>/api/infra/ps</code></td><td>공통 서비스 컨테이너 목록</td></tr>
         </tbody>
       </table></div>
-      <p><code>hub.api-token</code>을 설정하면 POST·PUT·DELETE 요청에 <code>X-Hub-Token</code> 헤더가 필요하고, 틀리면 401을 돌려줍니다. 대시보드에서는 왼쪽 아래 <b>API 토큰</b> 칸에 한 번 넣으면 그 브라우저에 기억됩니다. 같은 네트워크에 모르는 사람이 있다면 꼭 설정하세요.</p>
+      <p>조회(GET)는 토큰 없이 됩니다. 배포, 설정 저장, 버전 고정, 되돌리기, 프로젝트 추가·삭제 같은 변경 요청은 아래 규칙을 따릅니다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th><code>hub.api-token</code></th><th>변경 요청</th></tr></thead>
+        <tbody>
+          <tr><td>비어 있음 (기본)</td><td>Hub PC 자신(<code>localhost</code>)에서만 됩니다. 다른 PC에서 보내면 403</td></tr>
+          <tr><td>설정함</td><td>어느 PC에서든 <code>X-Hub-Token</code> 헤더에 같은 값을 보내야 됩니다. 틀리면 401</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note warn">
+        <strong>공용 PC로 여럿이 쓰려면 토큰을 꼭 설정하세요</strong>
+        <code>hub.api-token</code>에 긴 임의 문자열을 넣고 팀원에게 알려 줍니다. 대시보드에서는 왼쪽 아래 <b>API 토큰</b> 칸에 한 번 넣으면 그 브라우저에 기억됩니다. 토큰이 없으면 다른 PC에서는 화면은 보이지만 버튼을 누르면 403이 납니다.
+      </div>
+      <ul>
+        <li>다른 사이트가 브라우저를 통해 몰래 보내는 요청(Origin이 다른 변경 요청)은 막습니다.</li>
+        <li>모르는 호스트 이름으로 들어온 요청은 조회도 403으로 막습니다. <code>localhost</code>와 IP 주소(<code>http://192.168.0.10:8090</code>)는 그대로 되고, <code>http://hub-pc.local:8090</code>처럼 이름으로 접속한다면 <code>hub.yml</code>에 적어 둡니다.</li>
+      </ul>
+<pre><code>hub:
+  api-token: "길고-임의로-만든-문자열"
+  allowed-hosts: [hub-pc.local]</code></pre>
       <p>공용 PC는 보통 밖에서 접속할 수 없어 GitHub 웹훅을 직접 받기 어렵습니다. 그래서 기본은 폴링입니다. 더 빨리 반영하고 싶으면 <code>poll-interval</code>을 <code>15s</code> 정도로 줄이거나, 같은 네트워크에서 아래처럼 호출하면 됩니다.</p>
 <pre><code>curl -X POST -H "X-Hub-Token: &lt;토큰&gt;" http://&lt;공용PC&gt;:8090/api/projects/shop/services/api/deploy</code></pre>
 
