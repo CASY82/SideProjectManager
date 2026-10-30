@@ -48,7 +48,8 @@ public class DeployService {
         this.listeners = listeners;
     }
 
-    public enum SyncResult { DEPLOYED, UNCHANGED, ROLLED_BACK, FAILED, BUSY, UNKNOWN }
+    /** WAITING: compose.yml 에 서비스 정의가 없어 배포하지 않음 */
+    public enum SyncResult { DEPLOYED, UNCHANGED, WAITING, ROLLED_BACK, FAILED, BUSY, UNKNOWN }
 
     /**
      * @param force true 면 커밋이 그대로여도 다시 빌드·기동한다 (대시보드의 "다시 배포" 버튼)
@@ -66,7 +67,7 @@ public class DeployService {
         try {
             ServiceState before = project.states().get(serviceName);
             SyncResult result = doSync(project, svc, force);
-            if (result != SyncResult.UNCHANGED) {
+            if (result != SyncResult.UNCHANGED && result != SyncResult.WAITING) {
                 ServiceState after = project.states().get(serviceName);
                 for (DeployListener listener : listeners) {
                     try {
@@ -88,6 +89,12 @@ public class DeployService {
         String tag = config.id() + "/" + name;
         Path dir = store.workspace(config.id()).resolve(name);
         ServiceState current = project.states().get(name);
+        // project.yml 을 compose.yml 보다 먼저 저장한 경우 등. 실패로 남기거나 이슈를 올리지 않고 기다린다
+        String composeName = svc.composeServiceOrName();
+        if (!store.composeServices(config.id()).contains(composeName)) {
+            project.states().put(name, current.waiting("compose.yml 에 '" + composeName + "' 서비스 정의가 필요해요"));
+            return SyncResult.WAITING;
+        }
         String targetRef = config.targetRef(svc);
         String previous = null;
         CommitInfo target;

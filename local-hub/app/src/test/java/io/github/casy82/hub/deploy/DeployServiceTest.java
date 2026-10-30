@@ -48,6 +48,7 @@ class DeployServiceTest {
                   - name: api
                     repo: https://example.com/api.git
                 """);
+        Files.writeString(project.resolve("compose.yml"), "services:\n  api:\n    build: ./workspace/api\n");
         runner = new FakeRunner(project.resolve("workspace/api"));
         ComposeClient compose = new ComposeClient(runner, props);
         ProjectStore store = new ProjectStore(props, runner, compose);
@@ -187,6 +188,24 @@ class DeployServiceTest {
         registry.reload("shop");
 
         assertThat(state().status()).isEqualTo(DeployStatus.RUNNING);
+    }
+
+    @Test
+    void compose_yml_에_서비스_정의가_없으면_실패로_남기지_않고_기다린다() throws Exception {
+        runner.remote = "aaaaaaa1";
+        Path compose = base.resolve("data/projects/shop/compose.yml");
+        Files.writeString(compose, "services:\n  placeholder:\n    image: busybox\n");
+
+        assertThat(sync(false)).isEqualTo(SyncResult.WAITING);
+        assertThat(state().status()).isEqualTo(DeployStatus.PENDING);
+        assertThat(state().message()).contains("compose.yml").contains("api");
+        assertThat(runner.commands).isEmpty();
+        assertThat(events).isEmpty();
+
+        // 정의를 추가하면 배포한다
+        Files.writeString(compose, "services:\n  api:\n    build: ./workspace/api\n");
+        assertThat(sync(false)).isEqualTo(SyncResult.DEPLOYED);
+        assertThat(events).containsExactly("PENDING->RUNNING");
     }
 
     /** git 저장소 하나와 docker compose 를 흉내 낸다. */

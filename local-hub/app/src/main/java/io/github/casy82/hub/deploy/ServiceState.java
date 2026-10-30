@@ -21,6 +21,12 @@ public record ServiceState(
         return new ServiceState(name, repo, branch, DeployStatus.PENDING, null, null, null, null, "", "");
     }
 
+    /** 아직 배포할 수 없는 상태 (예: compose.yml 에 서비스 정의가 없음). 실패로 보지 않는다 */
+    ServiceState waiting(String message) {
+        return new ServiceState(name, repo, branch, DeployStatus.PENDING, deployedCommit, null, Instant.now(),
+                lastDeployedAt, message, lastOutput);
+    }
+
     ServiceState checked() {
         return new ServiceState(name, repo, branch, status, deployedCommit, failedCommit, Instant.now(),
                 lastDeployedAt, message, lastOutput);

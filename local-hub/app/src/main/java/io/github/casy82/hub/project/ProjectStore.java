@@ -10,9 +10,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.stereotype.Component;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
+import org.yaml.snakeyaml.error.YAMLException;
 
 import io.github.casy82.hub.compose.ComposeClient;
 import io.github.casy82.hub.config.HubProperties;
@@ -103,6 +109,26 @@ public class ProjectStore {
         history.init();
         history.commit("프로젝트 생성: " + (name == null || name.isBlank() ? id : name));
         return load(id).orElseThrow();
+    }
+
+    /**
+     * compose.yml 에 정의된 서비스 이름들. 파일이 없거나 읽을 수 없으면 빈 집합.
+     * 형식 검사는 저장할 때 하므로 여기서는 services 의 키만 본다.
+     */
+    public Set<String> composeServices(String id) {
+        Path file = dir(id).resolve(COMPOSE_FILE);
+        if (!Files.isRegularFile(file)) {
+            return Set.of();
+        }
+        try {
+            Object root = new Yaml(new SafeConstructor(new LoaderOptions())).load(read(file));
+            if (root instanceof Map<?, ?> m && m.get("services") instanceof Map<?, ?> services) {
+                return services.keySet().stream().map(String::valueOf).collect(Collectors.toUnmodifiableSet());
+            }
+        } catch (YAMLException e) {
+            // 저장 전 검사를 거치지 않고 직접 고친 파일. 정의가 없는 것으로 본다
+        }
+        return Set.of();
     }
 
     public String readFile(String id, String file) {
