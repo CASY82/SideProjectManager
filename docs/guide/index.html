@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--ARTIFACT-START-->
+<title>SideProjectManager 사용 가이드</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+  /* 레이아웃: 넓은 화면은 왼쪽 목차 + 본문 한 단, 좁은 화면은 본문만. 도구마다 색 띠 하나로 구분 */
+  :root {
+    --bg: #f7f8f8;
+    --surface: #ffffff;
+    --fg: #1b2226;
+    --muted: #5d6b72;
+    --line: #dde3e5;
+    --accent: #0f6e78;
+    --accent-soft: #e2f0f1;
+    --code-bg: #eef2f3;
+    --ok: #15803d;
+    --warn: #b45309;
+    --bad: #b91c1c;
+    --run: #1d4ed8;
+    --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12171a; --surface: #192024; --fg: #e3e8ea; --muted: #97a6ad; --line: #2b353a;
+      --accent: #5cc3cc; --accent-soft: #1b3236; --code-bg: #1f282c;
+      --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --run: #60a5fa; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12171a; --surface: #192024; --fg: #e3e8ea; --muted: #97a6ad; --line: #2b353a;
+    --accent: #5cc3cc; --accent-soft: #1b3236; --code-bg: #1f282c;
+    --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --run: #60a5fa; color-scheme: dark;
+  }
+  * { box-sizing: border-box }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.75 var(--font-body); word-break: keep-all; overflow-wrap: anywhere; }
+  .wrap {
+    max-width: 1120px; margin: 0 auto;
+    padding-block: 40px 80px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 48px;
+  }
+  @media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-block: 24px 64px } nav.toc { position: static !important; max-height: none !important } }
+  nav.toc { position: sticky; top: calc(24px + env(safe-area-inset-top, 0px)); align-self: start; max-height: calc(100vh - 48px); overflow: auto; font-size: 14px; }
+  nav.toc .label { font-size: 12px; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin-bottom: 8px }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px }
+  nav.toc ol ol { padding-left: 12px; margin: 2px 0 6px }
+  nav.toc a { color: var(--fg); text-decoration: none; display: block; padding: 3px 8px; border-radius: 6px }
+  nav.toc ol ol a { color: var(--muted) }
+  nav.toc a:hover, nav.toc a:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none }
+  main { min-width: 0 }
+  header.hero { border-bottom: 1px solid var(--line); padding-bottom: 28px; margin-bottom: 8px }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .06em; color: var(--accent) }
+  h1 { font-size: clamp(28px, 4vw, 38px); line-height: 1.25; margin: 6px 0 12px; text-wrap: balance; letter-spacing: -.01em }
+  h2 { font-size: 26px; line-height: 1.3; margin: 64px 0 8px; padding-top: 12px; text-wrap: balance; scroll-margin-top: 16px }
+  h3 { font-size: 19px; margin: 40px 0 6px; scroll-margin-top: 16px }
+  h4 { font-size: 16px; margin: 24px 0 4px }
+  p, ul, ol { max-width: 68ch }
+  p { margin: 10px 0 }
+  .lead { font-size: 18px; color: var(--muted) }
+  a { color: var(--accent) }
+  code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px }
+  pre { font-family: var(--font-mono); font-size: 13.5px; line-height: 1.6; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 14px 0 }
+  pre code { background: none; padding: 0; font-size: inherit }
+  .tool-tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--accent); background: var(--accent-soft); padding: 2px 10px; border-radius: 999px }
+  .table-wrap { overflow-x: auto; margin: 14px 0 }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line) }
+  th { font-weight: 600; color: var(--muted); font-size: 13px; white-space: nowrap }
+  td code { white-space: nowrap }
+  figure { margin: 22px 0 28px }
+  figure img { display: block; width: 100%; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface) }
+  figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; max-width: 75ch }
+  .note { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 14px 18px; margin: 18px 0; max-width: 72ch }
+  .note strong:first-child { display: block; margin-bottom: 2px }
+  .note.warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)) }
+  .note.warn strong:first-child { color: var(--warn) }
+  .badge { font-family: var(--font-mono); font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap }
+  .s-RUNNING { color: var(--ok) } .s-DEPLOYING { color: var(--run) } .s-ROLLED_BACK { color: var(--warn) } .s-FAILED { color: var(--bad) } .s-PENDING { color: var(--muted) }
+  .labels { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 }
+  .chip { font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 999px; line-height: 1.6 }
+  .steps { counter-reset: s; list-style: none; padding: 0 }
+  .steps > li { counter-increment: s; position: relative; padding-left: 40px; margin: 12px 0 }
+  .steps > li::before { content: counter(s); position: absolute; left: 0; top: 2px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14px; display: grid; place-items: center }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px }
+  .two > * { min-width: 0 }
+  .sample-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--muted); margin-top: 16px }
+  .overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 22px 0 }
+  .overview a { display: block; text-decoration: none; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px }
+  .overview a:hover, .overview a:focus-visible { border-color: var(--accent); outline: none }
+  .overview b { display: block; font-size: 17px; margin-bottom: 4px }
+  .overview span { font-size: 14px; color: var(--muted); line-height: 1.6; display: block }
+  footer { margin-top: 72px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted) }
+</style>
+<!--HEAD-END-->
+</head>
+<body>
+<!--BODY-START-->
+<div class="wrap">
+  <nav class="toc" aria-label="목차">
+    <div class="label">목차</div>
+    <ol>
+      <li><a href="#overview">한눈에 보기</a></li>
+      <li><a href="#quickstart">새 프로젝트에 적용하기</a></li>
+      <li><a href="#hub">Local Hub</a>
+        <ol>
+          <li><a href="#hub-setup">설치와 실행</a></li>
+          <li><a href="#hub-dashboard">대시보드</a></li>
+          <li><a href="#hub-rules">배포 규칙</a></li>
+          <li><a href="#hub-api">API와 토큰</a></li>
+          <li><a href="#hub-infra">공통 서비스</a></li>
+          <li><a href="#hub-private">비공개 저장소</a></li>
+        </ol>
+      </li>
+      <li><a href="#tasks">일정·할 일 자동 관리</a>
+        <ol>
+          <li><a href="#tasks-what">자동으로 되는 일</a></li>
+          <li><a href="#tasks-setup">처음 설정</a></li>
+          <li><a href="#tasks-issue">이슈 쓰는 법</a></li>
+          <li><a href="#tasks-labels">라벨</a></li>
+          <li><a href="#tasks-messages">알림 예시</a></li>
+          <li><a href="#tasks-board">칸반 보드</a></li>
+          <li><a href="#tasks-limits">비용과 주의점</a></li>
+        </ol>
+      </li>
+      <li><a href="#template">프로젝트 템플릿</a></li>
+      <li><a href="#init">init-project.sh</a></li>
+      <li><a href="#dev">고치고 테스트하기</a></li>
+      <li><a href="#shots">스크린샷에 대해</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">SideProjectManager</div>
+      <h1>사용 가이드</h1>
+      <p class="lead">클라우드나 유료 서비스 없이 토이·사이드 프로젝트를 굴리기 위한 세 가지 도구의 사용법입니다. 공용 PC 한 대에서 돌아가는 통합 서버, GitHub 이슈 기반 일정 관리, 그리고 새 프로젝트용 뼈대입니다.</p>
+    </header>
+
+    <section id="overview">
+      <h2>한눈에 보기</h2>
+      <div class="overview">
+        <a href="#hub"><b>Local Hub</b><span>공용 PC에 DB 같은 공통 서비스와 팀원 서비스를 함께 띄우고, git에 새 커밋이 올라오면 자동으로 다시 빌드합니다. 실패하면 이전 커밋으로 되돌립니다.</span></a>
+        <a href="#tasks"><b>일정·할 일 자동 관리</b><span>GitHub Issues와 Actions로 상태·우선순위·마감 라벨, 매일 마감 알림, 주간 요약, Discord/Slack 알림을 돌립니다.</span></a>
+        <a href="#template"><b>프로젝트 템플릿</b><span>README, 기여 규칙, PR 양식, 기술 결정 기록, 언어를 알아서 감지하는 CI, Dependabot 설정을 한 번에 깔아 줍니다.</span></a>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>도구</th><th>위치</th><th>필요한 것</th><th>비용</th></tr></thead>
+        <tbody>
+          <tr><td>Local Hub</td><td><code>local-hub/</code></td><td>Docker(Compose v2), Java 21, git</td><td>무료 (내 PC)</td></tr>
+          <tr><td>일정·할 일 자동 관리</td><td><code>.github/</code></td><td>GitHub 저장소</td><td>공개 저장소 무료, 비공개는 월 2,000분 무료 안에서 충분</td></tr>
+          <tr><td>프로젝트 템플릿</td><td><code>template/</code></td><td>없음</td><td>무료</td></tr>
+          <tr><td>초기화 스크립트</td><td><code>scripts/init-project.sh</code></td><td>bash (Windows는 Git Bash)</td><td>무료</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="quickstart">
+      <h2>새 프로젝트에 적용하기</h2>
+      <p>이 저장소를 받은 다음 초기화 스크립트로 원하는 도구를 프로젝트 폴더에 복사합니다. 옵션을 하나도 주지 않으면 세 가지를 모두 복사합니다.</p>
+<pre><code>git clone https://github.com/CASY82/SideProjectManager.git
+SideProjectManager/scripts/init-project.sh ../my-project              # 템플릿 + 일정 자동화 + Local Hub
+SideProjectManager/scripts/init-project.sh ../my-project --template   # 프로젝트 뼈대만
+SideProjectManager/scripts/init-project.sh ../my-project --tasks      # 일정 자동화만
+SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hub 만</code></pre>
+      <p>그다음 할 일은 스크립트가 마지막에 알려 줍니다. 자세한 옵션과 실제 출력은 <a href="#init">init-project.sh</a> 절에 있습니다.</p>
+    </section>
+
+    <!-- ───────────── Local Hub ───────────── -->
+    <section id="hub">
+      <h2>Local Hub</h2>
+      <span class="tool-tag">공용 PC 통합 서버</span>
+      <p>팀 공용 PC나 집 서버 한 대에서 공통 서비스(Postgres, Redis 등)와 팀원들이 만든 서비스를 하나의 Docker Compose 프로젝트로 띄워 둡니다. 각 서비스 저장소를 주기적으로 확인하다가 새 커밋이 보이면 그 서비스만 다시 빌드하고 재기동합니다. 웹 대시보드(기본 <code>8090</code> 포트)에서 상태를 보고 직접 배포를 누를 수도 있습니다.</p>
+<pre><code> 팀원 A ─push─▶ GitHub (api)  ┐
+ 팀원 B ─push─▶ GitHub (web)  ┤   git fetch (폴링)
+                              ▼
+ ┌──────────── 공용 PC ─────────────────────────────────────┐
+ │  Local Hub (Spring Boot, :8090 대시보드)                  │
+ │    새 커밋 발견 → docker compose up -d --build &lt;서비스&gt;    │
+ │    실패하면 이전 커밋으로 되돌려 다시 기동                  │
+ │                                                          │
+ │  Docker Compose 프로젝트 "sidehub"                        │
+ │    postgres  redis  mysql  rabbitmq  mailpit  (공통)     │
+ │    api  web  ...                            (팀원 서비스) │
+ └──────────────────────────────────────────────────────────┘</code></pre>
+
+      <h3 id="hub-setup">설치와 실행</h3>
+      <h4>준비물</h4>
+      <ul>
+        <li>Docker (Docker Desktop, 또는 Docker Engine과 Compose v2)</li>
+        <li>Java 21 이상. Maven은 따로 깔지 않아도 <code>mvnw</code>가 받아 옵니다.</li>
+        <li>git, 그리고 감시할 저장소를 읽을 수 있는 권한 (<a href="#hub-private">비공개 저장소</a> 참고)</li>
+        <li>감시할 각 서비스 저장소의 루트에 <code>Dockerfile</code></li>
+      </ul>
+      <ol class="steps">
+        <li><p><code>local-hub</code> 폴더에서 실행 스크립트를 돌립니다. 처음 실행하면 <code>hub.example.yml</code>을 <code>hub.yml</code>로 복사하고 앱을 빌드합니다.</p>
+<pre><code>cd local-hub
+./hub.sh          # Windows 는 hub.cmd
+./hub.sh --rebuild   # 이 저장소를 pull 받은 뒤 앱을 다시 빌드할 때</code></pre></li>
+        <li><p><code>hub.yml</code>에 감시할 저장소와 함께 띄울 공통 서비스를 적습니다. 이 파일은 팀마다 다르므로 git에 올리지 않습니다.</p>
+<pre><code>hub:
+  project-name: sidehub          # 컨테이너 이름 앞에 붙는 compose 프로젝트 이름
+  infra-profiles: [postgres, redis]   # 시작할 때 같이 띄울 공통 서비스
+  poll-interval: 60s             # 새 커밋 확인 주기 (30s, 1m, 5m ...)
+  command-timeout: 15m           # git/docker 명령 하나가 이보다 오래 걸리면 실패
+  api-token: ""                  # 넣으면 배포 요청에 X-Hub-Token 헤더 필요
+  services:
+    - name: api
+      repo: https://github.com/your-team/api.git
+      branch: main
+    - name: web
+      repo: git@github.com:your-team/web.git
+      branch: develop
+      compose-service: web       # compose 서비스 이름이 name 과 다를 때만</code></pre></li>
+        <li><p><code>docker-compose.apps.yml</code>에 같은 이름의 서비스를 추가합니다. 저장소는 <code>workspace/&lt;이름&gt;</code>에 clone되므로 <code>build</code>를 그 경로로 둡니다. 같은 Compose 프로젝트 안이라 DB 주소는 <code>localhost</code>가 아니라 <code>postgres:5432</code>입니다.</p>
+<pre><code>services:
+  api:
+    build: ./workspace/api
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/app
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+      SPRING_DATA_REDIS_HOST: redis</code></pre></li>
+        <li><p>다시 실행하고 브라우저에서 <code>http://&lt;공용PC IP&gt;:8090</code>을 엽니다.</p></li>
+      </ol>
+      <div class="note warn">
+        <strong>처음 실행할 때 공통 서비스가 안 뜰 수 있습니다</strong>
+        이번 가이드를 만들며 실제로 돌려 보니, 서비스 저장소를 아직 한 번도 clone하지 않은 첫 실행에서는 공통 서비스 기동이 <code>path ".../workspace/web" not found</code> 오류로 실패했습니다. 공통 서비스를 띄우는 명령이 팀원 서비스까지 함께 빌드하려 하기 때문입니다. 서비스 배포는 정상적으로 끝나므로, 첫 실행 뒤 Local Hub를 한 번 껐다 켜면 공통 서비스가 올라옵니다.
+      </div>
+
+      <h3 id="hub-dashboard">대시보드</h3>
+      <p>서비스마다 카드가 하나씩 있고, 화면은 5초마다 저절로 새로고침됩니다. 카드에는 상태, 감시 중인 브랜치, 지금 떠 있는 커밋(해시, 메시지, 작성자), 마지막 확인·배포 시각이 나옵니다. 아래쪽 <b>컨테이너 상태</b>는 공통 서비스를 포함한 Compose 프로젝트 전체의 <code>docker compose ps</code> 결과입니다.</p>
+      <figure>
+        <img src="img/01-dashboard-running.png" alt="Local Hub 대시보드. api, web, worker 세 서비스가 모두 RUNNING 상태이고 각 카드에 배포된 커밋과 버튼 네 개가 있다." loading="lazy">
+        <figcaption>세 서비스를 등록하고 처음 실행한 직후. 모두 첫 커밋으로 떠 있습니다.</figcaption>
+      </figure>
+
+      <div class="table-wrap"><table>
+        <thead><tr><th>버튼</th><th>하는 일</th></tr></thead>
+        <tbody>
+          <tr><td><b>지금 확인</b></td><td>폴링 주기를 기다리지 않고 바로 새 커밋을 확인합니다. 바뀐 게 있으면 배포합니다.</td></tr>
+          <tr><td><b>다시 배포</b></td><td>커밋이 그대로여도 다시 빌드·기동합니다. 실패한 커밋을 다시 시도할 때도 씁니다.</td></tr>
+          <tr><td><b>컨테이너 로그</b></td><td>해당 서비스 컨테이너의 최근 로그 200줄을 카드 아래에 펼칩니다.</td></tr>
+          <tr><td><b>배포 출력</b></td><td>마지막 배포 때 <code>docker compose</code>가 남긴 빌드·기동 출력을 펼칩니다. 실패 원인을 볼 때 씁니다.</td></tr>
+        </tbody>
+      </table></div>
+      <p>오른쪽 위 <b>API 토큰</b> 칸은 <code>hub.yml</code>에 <code>api-token</code>을 설정한 경우에만 채웁니다. 입력한 값은 그 브라우저에 기억됩니다.</p>
+
+      <h4>상태 값</h4>
+      <div class="table-wrap"><table>
+        <thead><tr><th>상태</th><th>뜻</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge s-PENDING">PENDING</span></td><td>아직 한 번도 확인하지 않음</td></tr>
+          <tr><td><span class="badge s-RUNNING">RUNNING</span></td><td>최신 커밋으로 떠 있음</td></tr>
+          <tr><td><span class="badge s-DEPLOYING">DEPLOYING</span></td><td>새 커밋을 빌드·기동하는 중</td></tr>
+          <tr><td><span class="badge s-ROLLED_BACK">ROLLED_BACK</span></td><td>새 커밋 배포에 실패해서 이전 커밋으로 되돌림. 서비스는 이전 버전으로 계속 떠 있음</td></tr>
+          <tr><td><span class="badge s-FAILED">FAILED</span></td><td>배포에 실패했는데 되돌릴 이전 커밋이 없음(첫 배포), 되돌린 버전도 실패, 또는 git 명령 자체가 실패</td></tr>
+        </tbody>
+      </table></div>
+
+      <h4>새 커밋이 올라왔을 때</h4>
+      <p>아래 두 화면은 api 저장소에 정상 커밋을, web 저장소에 빌드가 깨지는 커밋을 푸시한 뒤의 모습입니다. 따로 누른 버튼은 없고, 폴링으로 감지해 처리했습니다.</p>
+      <figure>
+        <img src="img/02a-dashboard-deploying.png" alt="api 카드가 DEPLOYING, web 카드가 ROLLED_BACK 상태인 대시보드" loading="lazy">
+        <figcaption>api는 새 커밋 <code>1444760</code>을 빌드하는 중(DEPLOYING)이고, 아래 문구에 "1444760 배포 중"이 보입니다. 배포가 끝날 때까지 기존 컨테이너는 그대로 떠 있습니다.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/02-dashboard-rolled-back.png" alt="api는 RUNNING으로 새 커밋이 배포되었고, web은 ROLLED_BACK이며 실패한 커밋이 빨간 글씨로 표시된 대시보드" loading="lazy">
+        <figcaption>몇 초 뒤. api는 "회원 가입 API 추가" 커밋으로 올라왔고, web은 실패한 커밋 <code>7df6b8a</code>을 빨간 글씨로 보여 주면서 이전 커밋 <code>8b58fac</code>으로 되돌려 계속 서비스합니다.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/03-deploy-output.png" alt="web 카드의 배포 출력을 펼친 화면. RUN npm run build 단계에서 npm: not found 오류가 보인다." loading="lazy">
+        <figcaption><b>배포 출력</b>을 펼치면 실패 원인이 바로 보입니다. 이 예에서는 Dockerfile의 <code>RUN npm run build</code>가 <code>npm: not found</code>로 실패했습니다. 출력은 최근 200줄까지 남습니다.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/04-container-logs.png" alt="worker 카드의 컨테이너 로그를 펼친 화면. 3초마다 메일 발송 큐 확인 로그가 찍혀 있다." loading="lazy">
+        <figcaption><b>컨테이너 로그</b>는 <code>docker compose logs --tail 200</code> 결과입니다. 공용 PC에 접속하지 않고도 팀원 서비스의 로그를 볼 수 있습니다.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/01b-dashboard-dark.png" alt="다크 모드로 표시된 Local Hub 대시보드" loading="lazy">
+        <figcaption>운영체제가 다크 모드면 대시보드도 어둡게 바뀝니다.</figcaption>
+      </figure>
+
+      <h3 id="hub-rules">배포 규칙</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>상황</th><th>Local Hub가 하는 일</th></tr></thead>
+        <tbody>
+          <tr><td>처음 시작</td><td><code>infra-profiles</code>의 공통 서비스를 올리고, 각 저장소를 <code>workspace/</code>에 clone한 뒤 빌드·기동</td></tr>
+          <tr><td>새 커밋 발견</td><td>그 서비스만 <code>docker compose up -d --build --no-deps --wait</code>로 다시 기동</td></tr>
+          <tr><td>빌드나 기동 실패</td><td>이전 커밋으로 되돌려 다시 기동하고 <code>ROLLED_BACK</code>으로 표시</td></tr>
+          <tr><td>실패한 커밋이 그대로</td><td>매 주기마다 다시 시도하지 않음. 새 커밋이 오거나 "다시 배포"를 누르면 재시도</td></tr>
+          <tr><td>커밋 변화 없음</td><td>아무것도 하지 않음</td></tr>
+        </tbody>
+      </table></div>
+      <ul>
+        <li><code>--wait</code>를 쓰므로 Compose에 <code>healthcheck</code>를 적어 두면 헬스체크까지 통과해야 성공으로 봅니다. 없으면 컨테이너가 떠 있기만 하면 성공입니다.</li>
+        <li><code>--no-deps</code>라서 한 서비스를 다시 띄워도 DB 같은 다른 컨테이너는 건드리지 않습니다.</li>
+        <li><code>workspace/</code>는 배포 전용입니다. 배포할 때 <code>git reset --hard</code>를 하므로 그 안에서 코드를 직접 고치지 마세요.</li>
+        <li>같은 서비스의 배포는 한 번에 하나만 돕니다. 배포 중에 버튼을 다시 눌러도 겹쳐 돌지 않습니다.</li>
+      </ul>
+
+      <h3 id="hub-api">API와 토큰</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>메서드</th><th>경로</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td>GET</td><td><code>/api/services</code></td><td>전체 서비스 상태</td></tr>
+          <tr><td>GET</td><td><code>/api/services/{name}</code></td><td>서비스 하나의 상태</td></tr>
+          <tr><td>POST</td><td><code>/api/services/{name}/deploy?force=false</code></td><td>즉시 확인·배포 (비동기, 202 응답). <code>force=true</code>면 커밋이 같아도 다시 빌드</td></tr>
+          <tr><td>GET</td><td><code>/api/services/{name}/logs?tail=200</code></td><td>컨테이너 로그 (최대 2000줄)</td></tr>
+          <tr><td>GET</td><td><code>/api/compose/ps</code></td><td>공통 서비스를 포함한 컨테이너 목록</td></tr>
+        </tbody>
+      </table></div>
+      <p><code>hub.api-token</code>을 설정하면 POST 요청에 <code>X-Hub-Token</code> 헤더가 필요하고, 틀리면 401을 돌려줍니다. 같은 네트워크에 모르는 사람이 있다면 꼭 설정하세요.</p>
+      <p>공용 PC는 보통 밖에서 접속할 수 없어 GitHub 웹훅을 직접 받기 어렵습니다. 그래서 기본은 폴링입니다. 더 빨리 반영하고 싶으면 <code>poll-interval</code>을 <code>15s</code> 정도로 줄이거나, 같은 네트워크에서 아래처럼 호출하면 됩니다.</p>
+<pre><code>curl -X POST -H "X-Hub-Token: &lt;토큰&gt;" http://&lt;공용PC&gt;:8090/api/services/api/deploy</code></pre>
+
+      <h3 id="hub-infra">공통 서비스</h3>
+      <p><code>docker-compose.yml</code>에 프로필로 들어 있고, 필요한 것만 <code>hub.yml</code>의 <code>infra-profiles</code>에 적습니다. 포트와 계정은 <code>local-hub/.env</code>로 바꿀 수 있습니다(<code>.env.example</code> 참고).</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>프로필</th><th>공용 PC에서 접속</th><th>컨테이너 안에서</th><th>기본 계정</th></tr></thead>
+        <tbody>
+          <tr><td><code>postgres</code></td><td><code>localhost:5432</code></td><td><code>postgres:5432</code></td><td>app / app, DB <code>app</code></td></tr>
+          <tr><td><code>mysql</code></td><td><code>localhost:3306</code></td><td><code>mysql:3306</code></td><td>app / app, DB <code>app</code></td></tr>
+          <tr><td><code>redis</code></td><td><code>localhost:6379</code></td><td><code>redis:6379</code></td><td>없음</td></tr>
+          <tr><td><code>rabbitmq</code></td><td><code>localhost:5672</code>, 관리 화면 <code>:15672</code></td><td><code>rabbitmq:5672</code></td><td>app / app</td></tr>
+          <tr><td><code>mailpit</code></td><td>SMTP <code>localhost:1025</code>, 웹 <code>:8025</code></td><td><code>mailpit:1025</code></td><td>없음</td></tr>
+        </tbody>
+      </table></div>
+      <p>데이터는 이름 있는 볼륨에 저장되므로 컨테이너를 다시 만들어도 남습니다. 팀원 PC에서는 <code>localhost</code> 대신 공용 PC의 IP로 접속합니다.</p>
+      <figure>
+        <img src="img/05-mailpit.png" alt="Mailpit 웹 화면. 받은 편지함에 회원 가입 인증 메일 한 통이 있다." loading="lazy">
+        <figcaption><code>mailpit</code>은 메일을 실제로 보내지 않고 모아 두는 테스트용 SMTP 서버입니다. 앱에서 <code>mailpit:1025</code>로 보낸 메일을 <code>http://&lt;공용PC&gt;:8025</code>에서 확인합니다.</figcaption>
+      </figure>
+
+      <h3 id="hub-private">비공개 저장소</h3>
+      <p>Local Hub는 호스트의 <code>git</code>을 그대로 씁니다. 공용 PC에서 <code>git clone</code>이 되면 Local Hub도 됩니다.</p>
+      <ul>
+        <li><b>SSH</b>: 공용 PC에 배포용 SSH 키를 만들고 각 저장소 <b>Settings → Deploy keys</b>에 읽기 전용으로 등록한 뒤 <code>repo: git@github.com:team/api.git</code></li>
+        <li><b>HTTPS</b>: <code>git config --global credential.helper store</code> 후 한 번 clone해서 토큰을 저장</li>
+      </ul>
+      <p>비밀번호를 묻는 상황이 되면 멈춰서 기다리지 않고 실패로 표시합니다.</p>
+      <p>메모리는 <code>hub.sh</code> 기준 힙 256MB, SerialGC로 돌며 서비스 몇 개를 감시할 때 약 170MB를 씁니다. 무거운 건 Docker 빌드이므로 공용 PC 사양은 팀원 서비스 크기에 맞추면 됩니다.</p>
+    </section>
+
+    <!-- ───────────── 일정 자동화 ───────────── -->
+    <section id="tasks">
+      <h2>일정·할 일 자동 관리</h2>
+      <span class="tool-tag">GitHub Issues + Actions</span>
+      <p>GitHub 이슈를 할 일 목록으로 쓰고, Actions가 라벨 정리와 마감 알림, 주간 요약을 대신합니다. Google Sheets와 Apps Script 조합보다 빠르고(이벤트가 오면 수십 초 안에 반영), 코드·PR과 바로 연결되며, 전부 무료입니다.</p>
+
+      <h3 id="tasks-what">자동으로 되는 일</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>언제</th><th>무엇을</th><th>워크플로</th></tr></thead>
+        <tbody>
+          <tr><td>이슈를 만들거나 고칠 때</td><td>우선순위(<code>priority: P0~P2</code>), 상태(<code>status: todo</code>), 마감(<code>due-soon</code>, <code>overdue</code>) 라벨을 붙임. 마감일 형식이 틀리면 댓글로 안내</td><td><code>issue-automation.yml</code></td></tr>
+          <tr><td>담당자를 지정·해제할 때</td><td><code>status: in-progress</code> ↔ <code>status: todo</code></td><td><code>issue-automation.yml</code></td></tr>
+          <tr><td>PR 본문에 <code>closes #12</code></td><td>12번 이슈를 <code>status: review</code>로. PR이 머지 없이 닫히면 원래대로</td><td><code>issue-automation.yml</code></td></tr>
+          <tr><td>이슈가 닫힐 때</td><td>상태·마감 라벨 정리</td><td><code>issue-automation.yml</code></td></tr>
+          <tr><td>매일 오전 9시 (KST)</td><td>마감 라벨 갱신, 새로 마감이 지난 이슈에 담당자 멘션 댓글, Discord/Slack으로 요약</td><td><code>due-reminders.yml</code></td></tr>
+          <tr><td>매주 월요일 오전 9시 (KST)</td><td>지난주 완료, 마감 지남, 담당자별 진행 중 목록을 "주간 요약" 이슈로 만들고 지난 요약은 닫음</td><td><code>weekly-summary.yml</code></td></tr>
+          <tr><td><code>labels.json</code>이 바뀔 때</td><td>저장소 라벨 생성·갱신</td><td><code>labels.yml</code></td></tr>
+        </tbody>
+      </table></div>
+
+      <h3 id="tasks-setup">처음 설정 (5분)</h3>
+      <ol class="steps">
+        <li><p><code>.github/</code>를 프로젝트에 복사합니다: <code>scripts/init-project.sh ../my-project --tasks</code></p></li>
+        <li><p>GitHub에 푸시한 뒤 <b>Actions</b> 탭 → <b>라벨 동기화</b> → <b>Run workflow</b>를 한 번 누릅니다. 라벨 11개가 만들어집니다.</p></li>
+        <li><p>(선택) 채팅방 알림을 받으려면 <b>Settings → Secrets and variables → Actions → New repository secret</b>에 추가합니다.</p>
+          <ul>
+            <li>Discord: 채널 설정 → 연동 → 웹후크에서 만든 URL을 <code>DISCORD_WEBHOOK_URL</code>로</li>
+            <li>Slack: Incoming Webhook URL을 <code>SLACK_WEBHOOK_URL</code>로</li>
+          </ul>
+          <p>둘 다 넣으면 두 곳 모두로 보냅니다. 없으면 알림 없이 라벨과 이슈만 정리합니다.</p></li>
+        <li><p>바로 확인하고 싶으면 <b>Actions → 마감 알림 → Run workflow</b>를 누릅니다.</p></li>
+      </ol>
+
+      <h3 id="tasks-issue">이슈 쓰는 법</h3>
+      <p><b>New issue</b>에서 <b>할 일</b> 또는 <b>버그</b> 양식을 고르면 마감일과 우선순위 칸이 있습니다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>양식</th><th>칸</th><th>자동 라벨</th></tr></thead>
+        <tbody>
+          <tr><td>할 일</td><td>내용(필수), 완료 조건, 마감일, 우선순위(P0 긴급 · P1 높음 · P2 보통, 기본 P2)</td><td><code>type: task</code></td></tr>
+          <tr><td>버그</td><td>무슨 일이 있었나요, 재현 방법, 마감일, 우선순위</td><td><code>type: bug</code></td></tr>
+        </tbody>
+      </table></div>
+      <p>양식 없이 쓴 이슈도 본문에 이런 줄이 있으면 마감일로 인식합니다. <code>마감</code>, <code>due</code>로 써도 되고 <code>2026.11.15</code>, <code>2026/11/5</code> 형식도 됩니다. 마감일을 바꾸려면 본문만 고치면 라벨이 바로 다시 계산됩니다.</p>
+<pre><code>마감일: 2026-11-15</code></pre>
+
+      <h3 id="tasks-labels">라벨</h3>
+      <p><code>.github/labels.json</code>에 정의된 라벨입니다. 상태·우선순위·마감 라벨은 그룹마다 하나만 남도록 자동으로 맞춥니다.</p>
+      <div class="labels" aria-label="라벨 목록">
+        <span class="chip" style="background:#1d76db;color:#fff">type: task</span>
+        <span class="chip" style="background:#d73a4a;color:#fff">type: bug</span>
+        <span class="chip" style="background:#ededed;color:#1b2226">status: todo</span>
+        <span class="chip" style="background:#fbca04;color:#1b2226">status: in-progress</span>
+        <span class="chip" style="background:#0e8a16;color:#fff">status: review</span>
+        <span class="chip" style="background:#b60205;color:#fff">priority: P0</span>
+        <span class="chip" style="background:#d93f0b;color:#fff">priority: P1</span>
+        <span class="chip" style="background:#c5def5;color:#1b2226">priority: P2</span>
+        <span class="chip" style="background:#f9d0c4;color:#1b2226">due-soon</span>
+        <span class="chip" style="background:#b60205;color:#fff">overdue</span>
+        <span class="chip" style="background:#5319e7;color:#fff">weekly-summary</span>
+      </div>
+      <ul>
+        <li><code>due-soon</code>: 마감 2일 이내 (오늘 포함)</li>
+        <li><code>overdue</code>: 마감일이 지남. 처음 붙을 때 담당자를 멘션하는 댓글이 한 번 달림</li>
+        <li><code>status: review</code>: 같은 저장소 브랜치에서 올린 PR이 이슈를 <code>closes</code>로 연결했을 때</li>
+      </ul>
+
+      <h3 id="tasks-messages">알림 예시</h3>
+      <p>아래는 저장소의 알림 스크립트(<code>.github/scripts/lib.js</code>)에 예시 이슈를 넣어 실제로 만든 본문입니다. 2026-11-02(월) 기준이고, 이슈와 담당자는 예시입니다. Discord/Slack에는 이 본문 끝에 이슈 목록 링크가 붙어 그대로 올라갑니다.</p>
+      <div class="two">
+        <div>
+          <div class="sample-label">매일 마감 알림</div>
+<pre><code>**마감 알림 (2026-11-02)**
+
+마감 지남 1건
+- #12 로그인 화면 구현 (@minji) · 2026-10-31, 2일 지남
+
+마감 임박 2건
+- #15 회원 가입 API (@junho) · 2026-11-02, 오늘 마감
+- #18 배포 문서 정리 (담당자 없음) · 2026-11-04, 2일 남음</code></pre>
+          <p>알릴 이슈가 없는 날은 아무것도 보내지 않습니다.</p>
+        </div>
+        <div>
+          <div class="sample-label">월요일 주간 요약 이슈</div>
+<pre><code>## 주간 요약 (2026-10-26 ~ 2026-11-02)
+
+완료 2건 · 열린 이슈 4건
+
+### 이번 주 완료
+- #9 DB 스키마 설계 (@minji)
+- #11 CI 설정 (@seoyeon)
+
+### 마감 지남
+- #12 로그인 화면 구현 (@minji) · 마감 2026-10-31
+
+### 담당자별 진행 중
+- @junho: #15
+- @minji: #12
+- @seoyeon: #20
+- 담당자 없음: #18</code></pre>
+        </div>
+      </div>
+      <p>주간 요약은 <code>주간 요약 2026-11-02</code> 같은 제목의 이슈로 만들어지고 <code>weekly-summary</code> 라벨이 붙습니다. "계획 없음(Close as not planned)"으로 닫은 이슈는 완료 목록에서 빠집니다.</p>
+
+      <h3 id="tasks-board">칸반 보드로 보기</h3>
+      <p>라벨만으로도 충분하지만 보드로 보고 싶다면 GitHub Projects(무료)를 씁니다.</p>
+      <ol class="steps">
+        <li><p>저장소의 <b>Projects → New project → Board</b>로 프로젝트를 만듭니다.</p></li>
+        <li><p>오른쪽 위 <b>… → Workflows</b>에서 <b>Auto-add to project</b>를 필터 <code>is:issue</code>로 켭니다. <b>Item closed</b>, <b>Pull request merged</b>는 기본으로 켜져 있어 Done으로 옮겨 줍니다.</p></li>
+        <li><p>라벨로 묶어 보고 싶으면 보기 설정에서 <b>Group by → Labels</b>를 고릅니다.</p></li>
+      </ol>
+      <p>무료 플랜의 Auto-add 개수 제한에 걸리면 저장소 변수 <code>PROJECT_URL</code>(프로젝트 주소)과 시크릿 <code>PROJECT_TOKEN</code>(<code>project</code> 권한이 있는 개인 토큰)을 넣으세요. 그러면 <code>issue-automation.yml</code>이 대신 보드에 추가합니다.</p>
+
+      <h3 id="tasks-limits">비용과 주의점</h3>
+      <ul>
+        <li>공개 저장소는 Actions가 무료이고 제한이 없습니다. 비공개 저장소는 월 2,000분 무료인데, 이벤트 처리 한 번이 10~20초라 매일 알림과 주간 요약을 합쳐도 한 달 수십 분 수준입니다.</li>
+        <li>예약 실행(cron)은 GitHub 사정으로 몇 분에서 수십 분 늦게 돌 수 있습니다.</li>
+        <li>공개 저장소에 60일 동안 커밋이 없으면 GitHub가 예약 워크플로를 멈춥니다. Actions 탭에서 다시 켜면 됩니다.</li>
+        <li>포크에서 온 PR은 권한이 읽기 전용이라 <code>status: review</code>가 붙지 않습니다.</li>
+      </ul>
+      <h4>바꾸고 싶을 때</h4>
+      <div class="table-wrap"><table>
+        <thead><tr><th>바꿀 것</th><th>위치</th></tr></thead>
+        <tbody>
+          <tr><td>마감 임박 기준 (2일)</td><td><code>.github/scripts/lib.js</code>의 <code>DUE_SOON_DAYS</code></td></tr>
+          <tr><td>알림 시각</td><td>각 워크플로의 <code>cron</code>. UTC 기준이라 KST에서 9시간을 뺍니다</td></tr>
+          <tr><td>라벨 이름·색</td><td><code>.github/labels.json</code>. 이름을 바꾸면 <code>lib.js</code>의 라벨 상수도 같이</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- ───────────── 템플릿 ───────────── -->
+    <section id="template">
+      <h2>프로젝트 템플릿</h2>
+      <span class="tool-tag">template/</span>
+      <p>새 프로젝트의 뼈대입니다. <code>init-project.sh --template</code>으로 복사하면 README의 프로젝트 이름이 자동으로 채워집니다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>파일</th><th>내용</th></tr></thead>
+        <tbody>
+          <tr><td><code>README.md</code></td><td>한 줄 소개, 목표, 팀, 기술 스택, 실행 방법, 일정 칸</td></tr>
+          <tr><td><code>CONTRIBUTING.md</code></td><td>이슈로 일 시작하기, 브랜치 이름(<code>feat/12-login-api</code>), Conventional Commits, PR은 Squash and merge, 24시간 안에 첫 리뷰, 제안은 <code>nit:</code></td></tr>
+          <tr><td><code>.github/pull_request_template.md</code></td><td>무엇을 했나요(<code>closes #</code>), 어떻게 확인했나요, 리뷰어가 봐 줬으면 하는 부분</td></tr>
+          <tr><td><code>.github/workflows/ci.yml</code></td><td><code>pom.xml</code>, Gradle, <code>package.json</code>, <code>requirements.txt</code>/<code>pyproject.toml</code>을 감지해 맞는 빌드·테스트를 돌림. 빌드 파일이 없으면 건너뜀</td></tr>
+          <tr><td><code>.github/dependabot.yml</code></td><td>GitHub Actions 버전을 매주 확인해 업데이트 PR. 주석을 풀면 maven/gradle/npm/pip 라이브러리도</td></tr>
+          <tr><td><code>docs/decisions/</code></td><td>기술 결정 기록(ADR) 양식과 첫 기록 "결정을 기록한다"</td></tr>
+          <tr><td><code>.gitignore</code>, <code>.gitattributes</code>, <code>.editorconfig</code>, <code>.env.example</code></td><td>공통 무시 목록, 줄바꿈 통일, 들여쓰기 규칙, 환경 변수 예시</td></tr>
+        </tbody>
+      </table></div>
+      <p>복사한 뒤에는 GitHub 저장소 <b>Settings → Branches</b>에서 <code>main</code> 브랜치 보호(PR 필수, CI 통과 필수)를 켜 두면 CONTRIBUTING의 규칙이 실제로 지켜집니다.</p>
+    </section>
+
+    <!-- ───────────── init ───────────── -->
+    <section id="init">
+      <h2>init-project.sh</h2>
+      <span class="tool-tag">scripts/</span>
+<pre><code>scripts/init-project.sh &lt;대상 디렉터리&gt; [--template] [--tasks] [--hub] [--force]</code></pre>
+      <div class="table-wrap"><table>
+        <thead><tr><th>옵션</th><th>복사하는 것</th></tr></thead>
+        <tbody>
+          <tr><td><code>--template</code></td><td>프로젝트 뼈대 (<code>template/</code> 폴더 내용)</td></tr>
+          <tr><td><code>--tasks</code></td><td>일정·할 일 자동화 (이슈 양식, 라벨, 워크플로, 스크립트)</td></tr>
+          <tr><td><code>--hub</code></td><td>Local Hub (<code>local-hub/</code>)</td></tr>
+          <tr><td>(없음)</td><td>위 세 가지 모두</td></tr>
+          <tr><td><code>--force</code></td><td>같은 이름의 파일이 있어도 덮어씀. 기본은 건너뜀</td></tr>
+        </tbody>
+      </table></div>
+      <ul>
+        <li>실행 중에 생기는 파일(<code>hub.yml</code>, <code>.env</code>, <code>workspace/</code>, 빌드 결과)은 복사하지 않고 <code>.gitignore</code>에 추가합니다.</li>
+        <li>대상 폴더가 git 저장소가 아니면 <code>git init</code>(main 브랜치)까지 합니다.</li>
+        <li>Windows에서는 Git Bash로 실행합니다.</li>
+      </ul>
+      <div class="sample-label">빈 폴더에 옵션 없이 실행했을 때의 실제 출력</div>
+<pre><code>$ SideProjectManager/scripts/init-project.sh ./my-project
+프로젝트 뼈대 복사
+일정·할 일 자동화 복사
+Local Hub 복사
+git 저장소를 새로 만들었습니다 (main 브랜치)
+
+완료: 55개 복사, 0개 건너뜀 → ./my-project
+
+다음 할 일
+  - README.md 의 소개·팀·기술 스택 채우기
+  - GitHub 저장소 Settings → Branches 에서 main 브랜치 보호 (PR 필수, CI 통과 필수) 켜기
+  - 푸시한 뒤 GitHub Actions 탭에서 '라벨 동기화' 워크플로를 한 번 실행
+  - (선택) Settings → Secrets 에 DISCORD_WEBHOOK_URL 또는 SLACK_WEBHOOK_URL 추가
+  - local-hub/hub.sh 실행 후 hub.yml 에 감시할 저장소 등록</code></pre>
+      <div class="sample-label">만들어지는 구조</div>
+<pre><code>my-project/
+├── README.md               소개·팀·기술 스택·실행 방법·일정 (프로젝트 이름 자동 입력)
+├── CONTRIBUTING.md         브랜치·커밋·PR·리뷰 규칙
+├── docs/decisions/         기술 결정 기록 (양식 포함)
+├── .github/
+│   ├── workflows/ci.yml    언어를 감지해 빌드·테스트
+│   ├── workflows/...       이슈 정리, 마감 알림, 주간 요약, 라벨 동기화
+│   ├── scripts/            자동화 로직 (JavaScript)
+│   ├── ISSUE_TEMPLATE/     할 일·버그 양식
+│   ├── labels.json
+│   ├── pull_request_template.md
+│   └── dependabot.yml
+├── local-hub/              공용 PC 통합 서버
+└── .gitignore .gitattributes .editorconfig .env.example</code></pre>
+    </section>
+
+    <section id="dev">
+      <h2>고치고 테스트하기</h2>
+<pre><code>node --test ".github/scripts/*.test.js"     # 일정 자동화 스크립트 (20개 테스트)
+(cd local-hub/app &amp;&amp; ./mvnw test)            # Local Hub 단위 테스트
+(cd local-hub/app &amp;&amp; ./mvnw package)         # target/local-hub.jar</code></pre>
+      <p>워크플로는 <code>actions/github-script</code>로 <code>.github/scripts/</code>의 파일을 불러오기만 하므로, 로직은 거기서 고치고 위 테스트로 확인합니다. PR을 올리면 CI가 두 테스트를 모두 돌립니다.</p>
+    </section>
+
+    <section id="shots">
+      <h2>스크린샷에 대해</h2>
+      <p>Local Hub 화면은 이 가이드를 만들면서 실제로 띄워 찍었습니다. 예시 저장소 세 개(api, web, worker)를 등록하고 Postgres, Redis, Mailpit을 공통 서비스로 올린 뒤, 정상 커밋과 빌드가 깨지는 커밋을 푸시해 자동 배포와 되돌리기가 일어나는 모습을 담았습니다. 커밋 작성자 이름은 예시입니다.</p>
+      <p>GitHub 쪽 화면(이슈 양식, 라벨이 붙은 이슈, Actions 실행, Discord 메시지)은 실제 저장소에 워크플로가 머지되고 로그인된 브라우저가 있어야 찍을 수 있어 넣지 않았습니다. 대신 <a href="#tasks-messages">알림 예시</a>는 저장소의 스크립트로 직접 만든 결과를 실었습니다.</p>
+    </section>
+
+    <footer>SideProjectManager · 2026-10-30 기준 · Local Hub(PR #1)와 일정 자동화·템플릿(PR #2) 내용</footer>
+  </main>
+</div>
+<!--BODY-END-->
+</body>
+</html>
