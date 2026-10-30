@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const lib = require('./lib');
+const { notify } = require('./notify');
 
 const formBody = (due, priority = 'P2 - 보통') =>
   `### 내용\n\n로그인 API\n\n### 완료 조건\n\n_No response_\n\n### 마감일\n\n${due}\n\n### 우선순위\n\n${priority}`;
@@ -94,13 +95,13 @@ test('주간 요약 본문', () => {
 });
 
 test('웹훅이 없으면 아무 데도 보내지 않는다', async () => {
-  assert.deepEqual(await lib.notify('hi', {}, () => { throw new Error('호출되면 안 됨'); }), []);
+  assert.deepEqual(await notify('hi', {}, () => { throw new Error('호출되면 안 됨'); }), []);
 });
 
 test('디스코드는 2000자로 자르고 멘션을 막는다', async () => {
   const calls = [];
   const fetch = async (url, opts) => { calls.push({ url, body: JSON.parse(opts.body) }); return { ok: true }; };
-  const sent = await lib.notify('가'.repeat(3000), { DISCORD_WEBHOOK_URL: 'd', SLACK_WEBHOOK_URL: 's' }, fetch);
+  const sent = await notify('가'.repeat(3000), { DISCORD_WEBHOOK_URL: 'd', SLACK_WEBHOOK_URL: 's' }, fetch);
   assert.deepEqual(sent, ['discord', 'slack']);
   assert.ok(calls[0].body.content.length <= 2000);
   assert.deepEqual(calls[0].body.allowed_mentions, { parse: [] });
@@ -110,7 +111,7 @@ test('디스코드는 2000자로 자르고 멘션을 막는다', async () => {
 test('슬랙으로 보낼 때 <!channel> 같은 멘션을 이스케이프한다', async () => {
   const calls = [];
   const fetch = async (url, opts) => { calls.push(JSON.parse(opts.body)); return { ok: true }; };
-  await lib.notify('#3 <!channel> 확인 & 배포', { SLACK_WEBHOOK_URL: 's' }, fetch);
+  await notify('#3 <!channel> 확인 & 배포', { SLACK_WEBHOOK_URL: 's' }, fetch);
   assert.equal(calls[0].text, '#3 &lt;!channel&gt; 확인 &amp; 배포');
 });
 
@@ -136,4 +137,10 @@ test('기획 진행률', () => {
   assert.equal(p.done, 1);
   assert.equal(p.total, 2);
   assert.deepEqual(p.open.map((i) => i.number), [3]);
+});
+
+test('기준 날짜는 YYYY-MM-DD 만 받는다', () => {
+  assert.equal(lib.resolveToday('2026-11-02'), '2026-11-02');
+  assert.match(lib.resolveToday(''), /^\d{4}-\d{2}-\d{2}$/);
+  assert.throws(() => lib.resolveToday('2026/11/02'), /YYYY-MM-DD/);
 });

@@ -4,6 +4,8 @@ const STATUS_LABELS = ['status: todo', 'status: in-progress', 'status: review'];
 const PRIORITY_LABELS = ['priority: P0', 'priority: P1', 'priority: P2'];
 const DUE_LABELS = ['due-soon', 'overdue'];
 const PLANNING_LABEL = 'type: planning';
+const REVIEW_LABEL = 'status: review';
+const WEEKLY_LABEL = 'weekly-summary';
 const DUE_SOON_DAYS = 2;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -67,8 +69,17 @@ function parsePlanRef(body) {
   return m ? Number(m[1]) : null;
 }
 
+/** 이벤트·API 마다 라벨이 문자열이거나 {name} 객체라서 이름만 꺼낸다 */
+function labelNames(labels) {
+  return (labels || []).map((l) => (typeof l === 'string' ? l : l.name));
+}
+
+function hasLabel(issue, name) {
+  return labelNames(issue.labels).includes(name);
+}
+
 function isPlanning(issue) {
-  return (issue.labels || []).some((l) => (typeof l === 'string' ? l : l.name) === PLANNING_LABEL);
+  return hasLabel(issue, PLANNING_LABEL);
 }
 
 /**
@@ -88,6 +99,18 @@ function planProgress(plans, issues) {
 /** 한국 시간 기준 오늘 날짜 (YYYY-MM-DD). Actions 러너는 UTC 라서 따로 계산한다. */
 function todayKST(now = new Date()) {
   return new Date(now.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * 알림·요약의 기준 날짜. 워크플로를 손으로 돌릴 때 TODAY 로 바꿀 수 있고, 없으면 한국 시간 오늘.
+ * 잘못된 날짜로 돌리면 마감 라벨이 모두 지워지므로 형식이 틀리면 멈춘다.
+ */
+function resolveToday(override = process.env.TODAY) {
+  const today = override || todayKST();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(today) || Number.isNaN(Date.parse(`${today}T00:00:00Z`))) {
+    throw new Error(`기준 날짜는 YYYY-MM-DD 형식이어야 합니다: ${today}`);
+  }
+  return today;
 }
 
 function daysBetween(from, to) {
@@ -120,15 +143,20 @@ function linkedIssues(prBody) {
  * @returns {{add: string[], remove: string[]}}
  */
 function diffLabels(current, group, want) {
-  const names = current.map((l) => (typeof l === 'string' ? l : l.name));
+  const names = labelNames(current);
   const remove = names.filter((n) => group.includes(n) && n !== want);
   const add = want && !names.includes(want) ? [want] : [];
   return { add, remove };
 }
 
+/** 담당자 멘션 목록 (["@kim", "@lee"]). 담당자가 없으면 빈 배열 */
+function mentions(issue) {
+  return (issue.assignees || []).map((a) => `@${a.login}`);
+}
+
 function who(issue) {
-  if (!issue.assignees || issue.assignees.length === 0) return '담당자 없음';
-  return issue.assignees.map((a) => `@${a.login}`).join(' ');
+  const names = mentions(issue);
+  return names.length ? names.join(' ') : '담당자 없음';
 }
 
 function line(issue, extra) {
@@ -140,16 +168,12 @@ function line(issue, extra) {
  * @param {{issue: object, due: string}[]} items 마감일이 있는 열린 이슈들
  */
 function formatReminder(items, today) {
-  const overdue = [];
-  const soon = [];
-  for (const { issue, due } of items) {
-    const left = daysBetween(today, due);
-    if (left < 0) overdue.push({ issue, due, left });
-    else if (left <= DUE_SOON_DAYS) soon.push({ issue, due, left });
-  }
+  const withLeft = items
+    .map(({ issue, due }) => ({ issue, due, left: daysBetween(today, due), label: dueLabelFor(due, today) }))
+    .sort((a, b) => a.left - b.left);
+  const overdue = withLeft.filter((x) => x.label === 'overdue');
+  const soon = withLeft.filter((x) => x.label === 'due-soon');
   if (overdue.length === 0 && soon.length === 0) return null;
-  overdue.sort((a, b) => a.left - b.left);
-  soon.sort((a, b) => a.left - b.left);
   const out = [`**마감 알림 (${today})**`];
   if (overdue.length) {
     out.push('', `마감 지남 ${overdue.length}건`);
@@ -168,73 +192,50 @@ function formatReminder(items, today) {
  *   plans 는 planProgress 의 결과 (열린 기획만)
  */
 function formatWeekly({ closed, open, today, weekAgo, plans = [] }) {
-  const out = [`## 주간 요약 (${weekAgo} ~ ${today})`, ''];
-  out.push(`완료 ${closed.length}건 · 열린 이슈 ${open.length}건`, '');
+  return [
+    `## 주간 요약 (${weekAgo} ~ ${today})`,
+    '',
+    `완료 ${closed.length}건 · 열린 이슈 ${open.length}건`,
+    '',
+    ...section('이번 주 완료', closed.map((i) => line(i)), '- 없음'),
+    '',
+    ...section('마감 지남', overdueLines(open, today), '- 없음'),
+    '',
+    ...section('기획 진행률', plans.map(planLine), '- 진행 중인 기획 없음'),
+    '',
+    ...section('담당자별 진행 중', personLines(open.filter((i) => !isPlanning(i))), '- 열린 이슈 없음'),
+  ].join('\n');
+}
 
-  out.push('### 이번 주 완료');
-  if (closed.length === 0) out.push('- 없음');
-  for (const i of closed) out.push(line(i));
-  out.push('');
+function section(title, lines, empty) {
+  return [`### ${title}`, ...(lines.length ? lines : [empty])];
+}
 
-  const overdue = open.filter((i) => dueLabelFor(parseDueDate(i.body)?.date, today) === 'overdue');
-  out.push('### 마감 지남');
-  if (overdue.length === 0) out.push('- 없음');
-  for (const i of overdue) out.push(line(i, `마감 ${parseDueDate(i.body).date}`));
-  out.push('');
+function overdueLines(open, today) {
+  return open
+    .map((i) => ({ issue: i, due: parseDueDate(i.body)?.date }))
+    .filter(({ due }) => dueLabelFor(due, today) === 'overdue')
+    .map(({ issue, due }) => line(issue, `마감 ${due}`));
+}
 
-  out.push('### 기획 진행률');
-  if (plans.length === 0) out.push('- 진행 중인 기획 없음');
-  for (const { plan, done, total } of plans) {
-    const due = parseDueDate(plan.body)?.date;
-    const progress = total === 0 ? '연결된 할 일 없음' : `${done}/${total} 완료`;
-    out.push(`- #${plan.number} ${plan.title}: ${progress}${due ? ` · 마감 ${due}` : ''}`);
-  }
-  out.push('');
+function planLine({ plan, done, total }) {
+  const due = parseDueDate(plan.body)?.date;
+  const progress = total === 0 ? '연결된 할 일 없음' : `${done}/${total} 완료`;
+  return `- #${plan.number} ${plan.title}: ${progress}${due ? ` · 마감 ${due}` : ''}`;
+}
 
-  out.push('### 담당자별 진행 중');
+/** 담당자마다 맡은 이슈 번호. 여러 명이 맡은 이슈는 각자에게 나온다 */
+function personLines(issues) {
   const byPerson = new Map();
-  for (const i of open.filter((x) => !isPlanning(x))) {
-    const names = i.assignees && i.assignees.length ? i.assignees.map((a) => `@${a.login}`) : ['담당자 없음'];
-    for (const n of names) {
+  for (const i of issues) {
+    const names = mentions(i);
+    for (const n of names.length ? names : ['담당자 없음']) {
       if (!byPerson.has(n)) byPerson.set(n, []);
       byPerson.get(n).push(i);
     }
   }
-  if (byPerson.size === 0) out.push('- 열린 이슈 없음');
-  for (const [person, issues] of [...byPerson.entries()].sort()) {
-    out.push(`- ${person}: ${issues.map((i) => `#${i.number}`).join(', ')}`);
-  }
-  return out.join('\n');
-}
-
-/**
- * DISCORD_WEBHOOK_URL / SLACK_WEBHOOK_URL 이 설정돼 있으면 메시지를 보낸다. 둘 다 없으면 아무 것도 하지 않는다.
- * @returns {Promise<string[]>} 보낸 곳 목록
- */
-async function notify(text, env = process.env, fetchImpl = globalThis.fetch) {
-  const sent = [];
-  if (env.DISCORD_WEBHOOK_URL) {
-    // 디스코드는 메시지 하나에 2000자까지
-    const content = text.length > 1990 ? `${text.slice(0, 1980)}\n…` : text;
-    const res = await fetchImpl(env.DISCORD_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
-    });
-    if (!res.ok) throw new Error(`Discord 웹훅 실패: ${res.status}`);
-    sent.push('discord');
-  }
-  if (env.SLACK_WEBHOOK_URL) {
-    const res = await fetchImpl(env.SLACK_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      // 이슈 제목에 <!channel> 같은 문구가 있어도 전체 알림이 가지 않도록 Slack 제어 문자를 이스케이프한다
-      body: JSON.stringify({ text: text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }),
-    });
-    if (!res.ok) throw new Error(`Slack 웹훅 실패: ${res.status}`);
-    sent.push('slack');
-  }
-  return sent;
+  return [...byPerson.entries()].sort()
+    .map(([person, list]) => `- ${person}: ${list.map((i) => `#${i.number}`).join(', ')}`);
 }
 
 module.exports = {
@@ -242,6 +243,11 @@ module.exports = {
   PRIORITY_LABELS,
   DUE_LABELS,
   PLANNING_LABEL,
+  REVIEW_LABEL,
+  WEEKLY_LABEL,
+  labelNames,
+  hasLabel,
+  mentions,
   parseSection,
   parsePlanRef,
   isPlanning,
@@ -249,6 +255,7 @@ module.exports = {
   parseDueDate,
   parsePriority,
   todayKST,
+  resolveToday,
   daysBetween,
   dueLabelFor,
   statusFor,
@@ -256,5 +263,4 @@ module.exports = {
   diffLabels,
   formatReminder,
   formatWeekly,
-  notify,
 };

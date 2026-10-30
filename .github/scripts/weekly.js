@@ -1,22 +1,18 @@
 // 매주 월요일 지난 7일 동안 끝낸 일, 마감 지난 일, 기획별 진행률, 담당자별 진행 중인 일을 이슈 하나로 정리한다.
 // 지난주 요약 이슈는 닫는다. 웹훅 시크릿이 있으면 채팅방으로도 보낸다.
 
-const { todayKST, formatWeekly, notify, isPlanning, planProgress } = require('./lib');
-const { hasLabel } = require('./github-helpers');
+const { WEEKLY_LABEL, todayKST, resolveToday, formatWeekly, isPlanning, planProgress, hasLabel } = require('./lib');
+const { listAllIssues } = require('./github-helpers');
+const { notify } = require('./notify');
 
 module.exports = async ({ github, context, core }) => {
   const repo = context.repo;
-  const today = process.env.TODAY || todayKST();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(today) || Number.isNaN(Date.parse(`${today}T00:00:00Z`))) {
-    // 잘못된 날짜로 돌리면 마감 라벨이 모두 지워지므로 멈춘다
-    throw new Error(`기준 날짜는 YYYY-MM-DD 형식이어야 합니다: ${today}`);
-  }
+  const today = resolveToday();
   const weekAgoDate = new Date(Date.parse(`${today}T00:00:00+09:00`) - 7 * 86400000);
   const weekAgo = todayKST(weekAgoDate);
 
   // 기획 진행률을 세려면 예전에 닫힌 할 일까지 봐야 해서 전체를 한 번에 가져온다
-  const all = (await github.paginate(github.rest.issues.listForRepo, { ...repo, state: 'all', per_page: 100 }))
-    .filter((i) => !i.pull_request && !hasLabel(i, 'weekly-summary'));
+  const all = (await listAllIssues(github, repo)).filter((i) => !i.pull_request && !hasLabel(i, WEEKLY_LABEL));
   const closed = all.filter((i) =>
     i.state === 'closed'
     && i.state_reason !== 'not_planned'
@@ -27,14 +23,14 @@ module.exports = async ({ github, context, core }) => {
   const body = formatWeekly({ closed, open, today, weekAgo, plans });
 
   const previous = await github.paginate(github.rest.issues.listForRepo, {
-    ...repo, state: 'open', labels: 'weekly-summary', per_page: 100,
+    ...repo, state: 'open', labels: WEEKLY_LABEL, per_page: 100,
   });
   for (const p of previous) {
     await github.rest.issues.update({ ...repo, issue_number: p.number, state: 'closed', state_reason: 'completed' });
   }
 
   const { data: created } = await github.rest.issues.create({
-    ...repo, title: `주간 요약 ${today}`, body, labels: ['weekly-summary'],
+    ...repo, title: `주간 요약 ${today}`, body, labels: [WEEKLY_LABEL],
   });
   core.info(`주간 요약 #${created.number} 생성`);
   await core.summary.addRaw(body).write();

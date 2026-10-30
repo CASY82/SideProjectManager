@@ -7,11 +7,11 @@
 //   "관련 기획: #5"      → 5번 기획 이슈의 하위 이슈로 연결, 연결된 할 일이 모두 닫히면 기획 작성자에게 확인 요청
 
 const {
-  STATUS_LABELS, PRIORITY_LABELS, DUE_LABELS,
+  STATUS_LABELS, PRIORITY_LABELS, DUE_LABELS, REVIEW_LABEL, WEEKLY_LABEL,
   parseDueDate, parsePriority, todayKST, dueLabelFor, statusFor, linkedIssues,
-  parsePlanRef, isPlanning, planProgress,
+  parsePlanRef, isPlanning, planProgress, hasLabel,
 } = require('./lib');
-const { setLabelInGroup, hasLabel } = require('./github-helpers');
+const { setLabelInGroup, getIssueOrNull, listAllIssues } = require('./github-helpers');
 
 const INVALID_DUE_MESSAGE = (raw) =>
   `마감일 \`${raw}\` 을(를) 읽을 수 없어요. \`YYYY-MM-DD\` 형식(예: 2026-11-15)으로 고쳐 주시면 마감 알림을 보낼게요.`;
@@ -27,7 +27,7 @@ module.exports = async ({ github, context, core }) => {
 
 async function onIssue(github, repo, payload, core) {
   const { action, issue } = payload;
-  if (hasLabel(issue, 'weekly-summary')) return;
+  if (hasLabel(issue, WEEKLY_LABEL)) return;
 
   if (action === 'closed') {
     await setLabelInGroup(github, repo, issue, STATUS_LABELS, null);
@@ -41,7 +41,7 @@ async function onIssue(github, repo, payload, core) {
   if (priority) await setLabelInGroup(github, repo, issue, PRIORITY_LABELS, priority);
 
   // 리뷰 중 상태는 PR 이 정하므로, 담당자 변경이 아닌 이벤트에서는 유지한다
-  const keepReview = hasLabel(issue, 'status: review') && !['assigned', 'unassigned'].includes(action);
+  const keepReview = hasLabel(issue, REVIEW_LABEL) && !['assigned', 'unassigned'].includes(action);
   if (!keepReview) await setLabelInGroup(github, repo, issue, STATUS_LABELS, statusFor(issue));
 
   const due = parseDueDate(issue.body);
@@ -72,13 +72,7 @@ async function linkToPlan(github, repo, payload, core) {
   }
   if (!ref || ref === issue.number) return;
 
-  let plan;
-  try {
-    ({ data: plan } = await github.rest.issues.get({ ...repo, issue_number: ref }));
-  } catch (e) {
-    if (e.status !== 404) throw e;
-    plan = null;
-  }
+  const plan = await getIssueOrNull(github, repo, ref);
   if (!plan || plan.pull_request) {
     await github.rest.issues.createComment({ ...repo, issue_number: issue.number,
       body: `관련 기획 #${ref} 을(를) 찾을 수 없어요. 기획 이슈 번호를 확인해 주세요.` });
@@ -102,16 +96,10 @@ async function checkPlanDone(github, repo, issue, core) {
   if (isPlanning(issue)) return;
   const ref = parsePlanRef(issue.body);
   if (!ref) return;
-  let plan;
-  try {
-    ({ data: plan } = await github.rest.issues.get({ ...repo, issue_number: ref }));
-  } catch (e) {
-    if (e.status === 404) return;
-    throw e;
-  }
-  if (plan.state !== 'open' || plan.pull_request) return;
+  const plan = await getIssueOrNull(github, repo, ref);
+  if (!plan || plan.state !== 'open' || plan.pull_request) return;
 
-  const all = await github.paginate(github.rest.issues.listForRepo, { ...repo, state: 'all', per_page: 100 });
+  const all = await listAllIssues(github, repo);
   const [{ done, total, open }] = planProgress([plan], all.map((i) => (i.number === issue.number ? issue : i)));
   if (total === 0 || open.length > 0) {
     core.info(`기획 #${ref}: ${done}/${total} 완료`);
@@ -138,7 +126,7 @@ async function onPullRequest(github, repo, payload, core) {
 
   let want;
   if (['opened', 'reopened', 'ready_for_review', 'edited'].includes(action) && !pr.draft) {
-    want = () => 'status: review';
+    want = () => REVIEW_LABEL;
   } else if (action === 'converted_to_draft' || (action === 'closed' && !pr.merged)) {
     want = statusFor;
   } else {
@@ -147,14 +135,8 @@ async function onPullRequest(github, repo, payload, core) {
   }
 
   for (const number of numbers) {
-    let issue;
-    try {
-      ({ data: issue } = await github.rest.issues.get({ ...repo, issue_number: number }));
-    } catch (e) {
-      if (e.status === 404) continue;
-      throw e;
-    }
-    if (issue.pull_request || issue.state !== 'open') continue;
+    const issue = await getIssueOrNull(github, repo, number);
+    if (!issue || issue.pull_request || issue.state !== 'open') continue;
     await setLabelInGroup(github, repo, issue, STATUS_LABELS, want(issue));
     core.info(`PR #${pr.number} ${action} → #${number} ${want(issue)}`);
   }

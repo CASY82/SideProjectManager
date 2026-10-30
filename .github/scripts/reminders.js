@@ -1,16 +1,13 @@
 // 매일 아침 열린 이슈의 마감일을 확인해 라벨을 고치고, 마감이 지난 이슈에는 담당자를 불러 한 번 알린다.
 // DISCORD_WEBHOOK_URL / SLACK_WEBHOOK_URL 시크릿이 있으면 요약을 채팅방으로도 보낸다.
 
-const { DUE_LABELS, parseDueDate, todayKST, dueLabelFor, formatReminder, notify } = require('./lib');
+const { DUE_LABELS, parseDueDate, resolveToday, dueLabelFor, formatReminder, mentions } = require('./lib');
 const { setLabelInGroup, listOpenIssues } = require('./github-helpers');
+const { notify } = require('./notify');
 
 module.exports = async ({ github, context, core }) => {
   const repo = context.repo;
-  const today = process.env.TODAY || todayKST();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(today) || Number.isNaN(Date.parse(`${today}T00:00:00Z`))) {
-    // 잘못된 날짜로 돌리면 마감 라벨이 모두 지워지므로 멈춘다
-    throw new Error(`기준 날짜는 YYYY-MM-DD 형식이어야 합니다: ${today}`);
-  }
+  const today = resolveToday();
   const issues = await listOpenIssues(github, repo);
 
   const withDue = [];
@@ -20,7 +17,7 @@ module.exports = async ({ github, context, core }) => {
     if (!due) continue;
     withDue.push({ issue, due });
     if (add.includes('overdue')) {
-      const mention = issue.assignees.length ? issue.assignees.map((a) => `@${a.login}`).join(' ') + ' ' : '';
+      const mention = mentions(issue).map((m) => `${m} `).join('');
       await github.rest.issues.createComment({
         ...repo,
         issue_number: issue.number,
