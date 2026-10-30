@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local Hub</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#6b7280; --line:#e5e7eb;
+          --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --run:#1d4ed8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111418; --card:#1a1f26; --text:#e5e7eb; --muted:#9ca3af; --line:#2b323c;
+            --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --run:#60a5fa; }
+  }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui, sans-serif }
+  main { max-width:1100px; margin:0 auto; padding:24px 16px }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:16px }
+  h1 { font-size:20px; margin:0 } h2 { font-size:16px; margin:28px 0 8px }
+  .muted { color:var(--muted) }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px }
+  .row { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center }
+  .name { font-weight:600; font-size:15px; min-width:120px }
+  .badge { font-size:12px; font-weight:600; padding:2px 8px; border-radius:999px; border:1px solid currentColor }
+  .RUNNING{color:var(--ok)} .DEPLOYING{color:var(--run)} .ROLLED_BACK{color:var(--warn)}
+  .FAILED{color:var(--bad)} .PENDING{color:var(--muted)}
+  code { font-family:ui-monospace, monospace; font-size:12.5px }
+  .actions { margin-left:auto; display:flex; gap:6px }
+  button { font:inherit; padding:4px 10px; border-radius:6px; border:1px solid var(--line);
+           background:var(--bg); color:var(--text); cursor:pointer }
+  button:hover { border-color:var(--muted) }
+  pre { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:10px; margin:10px 0 0;
+        max-height:320px; overflow:auto; font-size:12px; white-space:pre-wrap; word-break:break-all }
+  input { font:inherit; padding:4px 8px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--text) }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Local Hub</h1>
+      <div class="muted">git 변경을 감지해 Docker Compose 서비스를 자동으로 다시 띄웁니다. 5초마다 새로고침.</div>
+    </div>
+    <label class="muted">API 토큰 <input id="token" type="password" placeholder="설정한 경우만"></label>
+  </header>
+
+  <section id="services"><div class="muted">불러오는 중…</div></section>
+
+  <h2>컨테이너 상태</h2>
+  <pre id="ps" class="muted">불러오는 중…</pre>
+</main>
+
+<script>
+const open = new Set();
+const tokenInput = document.getElementById('token');
+try { tokenInput.value = localStorage.getItem('hubToken') || ''; } catch (e) {}
+tokenInput.addEventListener('change', () => { try { localStorage.setItem('hubToken', tokenInput.value); } catch (e) {} });
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const time = t => t ? new Date(t).toLocaleString() : '-';
+const commit = c => c ? `<code>${esc(c.sha.slice(0, 7))}</code> ${esc(c.subject)} <span class="muted">· ${esc(c.author)}</span>` : '<span class="muted">-</span>';
+
+async function deploy(name, force) {
+  const res = await fetch(`api/services/${encodeURIComponent(name)}/deploy?force=${force}`,
+    { method: 'POST', headers: { 'X-Hub-Token': tokenInput.value } });
+  if (!res.ok) alert((await res.json().catch(() => ({}))).error || `요청 실패 (${res.status})`);
+  refresh();
+}
+
+async function showLogs(name) {
+  const el = document.getElementById(`logs-${name}`);
+  el.textContent = '불러오는 중…';
+  el.hidden = false;
+  const res = await fetch(`api/services/${encodeURIComponent(name)}/logs?tail=200`);
+  el.textContent = res.ok ? (await res.json()).output || '(로그 없음)' : `불러오기 실패 (${res.status})`;
+}
+
+function toggle(name) { open.has(name) ? open.delete(name) : open.add(name); refresh(); }
+
+function render(states) {
+  if (!states.length) return '<div class="card muted">hub.yml 에 등록된 서비스가 없습니다.</div>';
+  return states.map(s => `
+    <div class="card">
+      <div class="row">
+        <span class="name">${esc(s.name)}</span>
+        <span class="badge ${s.status}">${s.status}</span>
+        <span class="muted">${esc(s.branch)}</span>
+        <div class="actions">
+          <button onclick="deploy('${esc(s.name)}', false)">지금 확인</button>
+          <button onclick="deploy('${esc(s.name)}', true)">다시 배포</button>
+          <button onclick="showLogs('${esc(s.name)}')">컨테이너 로그</button>
+          <button onclick="toggle('${esc(s.name)}')">${open.has(s.name) ? '출력 닫기' : '배포 출력'}</button>
+        </div>
+      </div>
+      <div style="margin-top:6px">배포된 커밋: ${commit(s.deployedCommit)}</div>
+      ${s.failedCommit ? `<div style="color:var(--bad)">실패한 커밋: ${commit(s.failedCommit)}</div>` : ''}
+      <div class="muted">${esc(s.message)} · 마지막 확인 ${time(s.lastCheckedAt)} · 마지막 배포 ${time(s.lastDeployedAt)}</div>
+      ${open.has(s.name) ? `<pre>${esc(s.lastOutput || '(출력 없음)')}</pre>` : ''}
+      <pre id="logs-${esc(s.name)}" hidden></pre>
+    </div>`).join('');
+}
+
+async function refresh() {
+  try {
+    const states = await (await fetch('api/services')).json();
+    const keep = {};
+    document.querySelectorAll('pre[id^="logs-"]:not([hidden])').forEach(p => keep[p.id] = p.textContent);
+    document.getElementById('services').innerHTML = render(states);
+    for (const [id, text] of Object.entries(keep)) {
+      const p = document.getElementById(id);
+      if (p) { p.textContent = text; p.hidden = false; }
+    }
+    const ps = await (await fetch('api/compose/ps')).json();
+    document.getElementById('ps').textContent = ps.output || '(실행 중인 컨테이너 없음)';
+  } catch (e) {
+    document.getElementById('services').innerHTML = '<div class="card" style="color:var(--bad)">서버에 연결할 수 없습니다.</div>';
+  }
+}
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
