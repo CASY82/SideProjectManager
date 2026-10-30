@@ -35,6 +35,11 @@ done
 [[ -n "$TARGET" ]] || usage 1
 if ! $WANT_TEMPLATE && ! $WANT_TASKS && ! $WANT_HUB; then WANT_TEMPLATE=true; WANT_TASKS=true; WANT_HUB=true; fi
 
+# 복사를 시작하기 전에 원본을 확인한다. 중간에 멈추면 일부만 복사되고 git init 도 빠진다
+$WANT_TEMPLATE && [[ ! -d "$SRC/template" ]] && { echo "원본에 template 이 없습니다" >&2; exit 1; }
+$WANT_TASKS && [[ ! -d "$SRC/.github/scripts" ]] && { echo "원본에 .github/scripts 가 없습니다" >&2; exit 1; }
+$WANT_HUB && [[ ! -d "$SRC/local-hub" ]] && { echo "원본에 local-hub 가 없습니다 (--template --tasks 만 고르거나 Local Hub 가 들어간 버전을 받으세요)" >&2; exit 1; }
+
 mkdir -p "$TARGET"
 TARGET="$(cd "$TARGET" && pwd)"
 [[ "$TARGET" != "$SRC" ]] || { echo "이 저장소 자신에는 복사할 수 없습니다" >&2; exit 1; }
@@ -81,7 +86,6 @@ ensure_gitignore() {
 
 if $WANT_TEMPLATE; then
   echo "프로젝트 뼈대 복사"
-  [[ -d "$SRC/template" ]] || { echo "원본에 template 이 없습니다" >&2; exit 1; }
   while IFS= read -r -d '' file; do
     rel="${file#"$SRC"/}"
     copy_file "$rel" "${rel#template/}"
@@ -90,7 +94,6 @@ fi
 
 if $WANT_TASKS; then
   echo "일정·할 일 자동화 복사"
-  [[ -d "$SRC/.github/scripts" ]] || { echo "원본에 .github/scripts 가 없습니다" >&2; exit 1; }
   copy_tree .github/ISSUE_TEMPLATE
   copy_tree .github/scripts
   copy_file .github/labels.json
@@ -101,7 +104,6 @@ fi
 
 if $WANT_HUB; then
   echo "Local Hub 복사"
-  [[ -d "$SRC/local-hub" ]] || { echo "원본에 local-hub 가 없습니다" >&2; exit 1; }
   copy_tree local-hub
   ensure_gitignore "local-hub/hub.yml"
   ensure_gitignore "local-hub/.env"
