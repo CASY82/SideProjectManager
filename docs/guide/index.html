@@ -190,7 +190,7 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
  │    실패하면 이전 커밋으로 되돌려 다시 기동                  │
  │                                                          │
  │  Docker Compose 프로젝트 "sidehub"                        │
- │    postgres  redis  mysql  rabbitmq  mailpit  (공통)     │
+ │    postgres  redis  mysql  rabbitmq           (공통)     │
  │    api  web  ...                            (팀원 서비스) │
  └──────────────────────────────────────────────────────────┘</code></pre>
 
@@ -269,12 +269,12 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
       <h4>새 커밋이 올라왔을 때</h4>
       <p>아래 두 화면은 api 저장소에 정상 커밋을, web 저장소에 빌드가 깨지는 커밋을 푸시한 뒤의 모습입니다. 따로 누른 버튼은 없고, 폴링으로 감지해 처리했습니다.</p>
       <figure>
-        <img src="img/02a-dashboard-deploying.png" alt="api 카드가 DEPLOYING, web 카드가 ROLLED_BACK 상태인 대시보드" loading="lazy">
-        <figcaption>api는 새 커밋 <code>1444760</code>을 빌드하는 중(DEPLOYING)이고, 아래 문구에 "1444760 배포 중"이 보입니다. 배포가 끝날 때까지 기존 컨테이너는 그대로 떠 있습니다.</figcaption>
+        <img src="img/02a-dashboard-deploying.png" alt="api와 web 카드가 DEPLOYING 상태인 대시보드" loading="lazy">
+        <figcaption>새 커밋을 감지해 api(<code>2241f44</code>)와 web(<code>6bafe63</code>)을 빌드하는 중(DEPLOYING)입니다. 배포가 끝날 때까지 기존 컨테이너는 그대로 떠 있습니다.</figcaption>
       </figure>
       <figure>
         <img src="img/02-dashboard-rolled-back.png" alt="api는 RUNNING으로 새 커밋이 배포되었고, web은 ROLLED_BACK이며 실패한 커밋이 빨간 글씨로 표시된 대시보드" loading="lazy">
-        <figcaption>몇 초 뒤. api는 "회원 가입 API 추가" 커밋으로 올라왔고, web은 실패한 커밋 <code>7df6b8a</code>을 빨간 글씨로 보여 주면서 이전 커밋 <code>8b58fac</code>으로 되돌려 계속 서비스합니다.</figcaption>
+        <figcaption>몇 초 뒤. api는 "회원 가입 API 추가" 커밋으로 올라왔고, web은 실패한 커밋 <code>6bafe63</code>을 빨간 글씨로 보여 주면서 이전 커밋 <code>8664225</code>로 되돌려 계속 서비스합니다.</figcaption>
       </figure>
       <figure>
         <img src="img/03-deploy-output.png" alt="web 카드의 배포 출력을 펼친 화면. RUN npm run build 단계에서 npm: not found 오류가 보인다." loading="lazy">
@@ -282,10 +282,10 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
       </figure>
       <figure>
         <img src="img/02c-dashboard-recovered.png" alt="web이 고친 커밋으로 다시 RUNNING이 된 대시보드" loading="lazy">
-        <figcaption>이준호 님이 문제를 고친 커밋 <code>895c922</code>를 푸시하자 web이 다시 <span class="badge s-RUNNING">RUNNING</span>이 되고 실패 표시가 사라졌습니다.</figcaption>
+        <figcaption>이준호 님이 문제를 고친 커밋 <code>7f7539e</code>를 푸시하자 web이 다시 <span class="badge s-RUNNING">RUNNING</span>이 되고 실패 표시가 사라졌습니다.</figcaption>
       </figure>
       <figure>
-        <img src="img/04-container-logs.png" alt="worker 카드의 컨테이너 로그를 펼친 화면. 3초마다 메일 발송 큐 확인 로그가 찍혀 있다." loading="lazy">
+        <img src="img/04-container-logs.png" alt="worker 카드의 컨테이너 로그를 펼친 화면. 3초마다 주문 집계 작업 확인 로그가 찍혀 있다." loading="lazy">
         <figcaption><b>컨테이너 로그</b>는 <code>docker compose logs --tail 200</code> 결과입니다. 공용 PC에 접속하지 않고도 팀원 서비스의 로그를 볼 수 있습니다.</figcaption>
       </figure>
       <figure>
@@ -370,14 +370,9 @@ hub:
           <tr><td><code>mysql</code></td><td><code>localhost:3306</code></td><td><code>mysql:3306</code></td><td>app / app, DB <code>app</code></td></tr>
           <tr><td><code>redis</code></td><td><code>localhost:6379</code></td><td><code>redis:6379</code></td><td>없음</td></tr>
           <tr><td><code>rabbitmq</code></td><td><code>localhost:5672</code>, 관리 화면 <code>:15672</code></td><td><code>rabbitmq:5672</code></td><td>app / app</td></tr>
-          <tr><td><code>mailpit</code></td><td>SMTP <code>localhost:1025</code>, 웹 <code>:8025</code></td><td><code>mailpit:1025</code></td><td>없음</td></tr>
         </tbody>
       </table></div>
       <p>데이터는 이름 있는 볼륨에 저장되므로 컨테이너를 다시 만들어도 남습니다. 팀원 PC에서는 <code>localhost</code> 대신 공용 PC의 IP로 접속합니다.</p>
-      <figure>
-        <img src="img/05-mailpit.png" alt="Mailpit 웹 화면. 받은 편지함에 회원 가입 인증 메일 한 통이 있다." loading="lazy">
-        <figcaption><code>mailpit</code>은 메일을 실제로 보내지 않고 모아 두는 테스트용 SMTP 서버입니다. 앱에서 <code>mailpit:1025</code>로 보낸 메일을 <code>http://&lt;공용PC&gt;:8025</code>에서 확인합니다.</figcaption>
-      </figure>
 
       <h3 id="hub-private">비공개 저장소</h3>
       <p>Local Hub는 호스트의 <code>git</code>을 그대로 씁니다. 공용 PC에서 <code>git clone</code>이 되면 Local Hub도 됩니다.</p>
@@ -625,7 +620,7 @@ git 저장소를 새로 만들었습니다 (main 브랜치)
       <div class="table-wrap"><table>
         <thead><tr><th>종류</th><th>화면</th><th>어떻게 만들었나</th></tr></thead>
         <tbody>
-          <tr><td><b>실제 화면</b></td><td>Local Hub 대시보드 7장, Mailpit</td><td>Local Hub를 실제로 띄워 찍었습니다. 예시 저장소 세 개(api, web, worker)와 Postgres, Redis, Mailpit을 올리고 정상 커밋, 빌드가 깨지는 커밋, 고친 커밋을 차례로 푸시했습니다. 커밋 작성자 이름은 예시입니다.</td></tr>
+          <tr><td><b>실제 화면</b></td><td>Local Hub 대시보드 7장</td><td>Local Hub를 실제로 띄워 찍었습니다. 예시 저장소 세 개(api, web, worker)와 Postgres, Redis를 올리고 정상 커밋, 빌드가 깨지는 커밋, 고친 커밋을 차례로 푸시했습니다. 커밋 작성자 이름은 예시입니다.</td></tr>
           <tr><td><b>미리보기</b> (실제 GitHub 화면 아님)</td><td>기획·할 일 양식, 기획 진행률, 기획 완료 댓글, 배포 실패 이슈, 주간 요약, 채팅 알림</td><td>워크플로가 실제 저장소에서 돌아야 찍을 수 있어 직접 그렸습니다. 양식은 저장소의 YAML 파일에서, 본문과 댓글 문구는 실제 스크립트 출력에서 가져왔습니다. 배포 실패 이슈는 Local Hub가 테스트용 가짜 GitHub API로 실제로 보낸 내용입니다. 이미지 위쪽 노란 표시로 구분됩니다.</td></tr>
         </tbody>
       </table></div>
