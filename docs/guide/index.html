@@ -711,6 +711,8 @@ docker compose --profile postgres --profile redis up -d</code></pre>
         <li>예약 실행(cron)은 GitHub 사정으로 몇 분에서 수십 분 늦게 돌 수 있습니다.</li>
         <li>공개 저장소에 60일 동안 커밋이 없으면 GitHub가 예약 워크플로를 멈춥니다. Actions 탭에서 다시 켜면 됩니다.</li>
         <li>포크에서 온 PR은 권한이 읽기 전용이라 <code>status: review</code>가 붙지 않습니다.</li>
+        <li>이슈 제목에 <code>&lt;!channel&gt;</code>, <code>@everyone</code> 같은 문구가 있어도 채팅 알림이 채널 전체에 멘션되지 않습니다. Slack은 제어 문자를 글자 그대로 바꿔 보내고, Discord는 멘션을 꺼 두고 보냅니다.</li>
+        <li>마감 알림이나 주간 요약을 손으로 실행할 때 기준 날짜를 넣는다면 <code>YYYY-MM-DD</code> 형식이어야 합니다. 형식이 틀리면 라벨을 건드리지 않고 실행을 멈춥니다.</li>
       </ul>
       <h4>바꾸고 싶을 때</h4>
       <div class="table-wrap"><table>
@@ -797,8 +799,8 @@ git 저장소를 새로 만들었습니다 (main 브랜치)
 
     <section id="dev">
       <h2>고치고 테스트하기</h2>
-<pre><code>node --test ".github/scripts/*.test.js"     # 일정 자동화 스크립트 (27개 테스트)
-(cd local-hub/app &amp;&amp; ./mvnw test)            # Local Hub 단위 테스트 (31개)
+<pre><code>node --test ".github/scripts/*.test.js"     # 일정 자동화 스크립트 (28개 테스트)
+(cd local-hub/app &amp;&amp; ./mvnw test)            # Local Hub 단위 테스트 (39개)
 (cd local-hub/app &amp;&amp; ./mvnw package)         # target/local-hub.jar</code></pre>
       <p>워크플로는 <code>actions/github-script</code>로 <code>.github/scripts/</code>의 파일을 불러오기만 하므로, 로직은 거기서 고치고 위 테스트로 확인합니다. PR을 올리면 CI가 두 테스트를 모두 돌립니다.</p>
     </section>
