@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.github.casy82.hub.git.GitClient;
 import io.github.casy82.hub.process.CommandResult;
 import io.github.casy82.hub.process.CommandRunner;
 
@@ -31,7 +32,7 @@ public class ConfigHistory {
     public record Version(String sha, String date, String message) {
 
         public String shortSha() {
-            return sha.substring(0, Math.min(7, sha.length()));
+            return GitClient.shortSha(sha);
         }
     }
 

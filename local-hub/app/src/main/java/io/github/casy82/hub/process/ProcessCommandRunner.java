@@ -37,7 +37,7 @@ public class ProcessCommandRunner implements CommandRunner {
             }
             return new CommandResult(process.exitValue(), output.join());
         } catch (IOException e) {
-            return new CommandResult(-1, "명령을 실행할 수 없음: " + String.join(" ", command) + "\n" + e.getMessage());
+            return CommandResult.cannotRun(command, e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return new CommandResult(-1, "중단됨");

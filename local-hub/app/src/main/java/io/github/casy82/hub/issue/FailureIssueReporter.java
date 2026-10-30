@@ -2,7 +2,6 @@ package io.github.casy82.hub.issue;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,6 +15,7 @@ import io.github.casy82.hub.deploy.DeployListener;
 import io.github.casy82.hub.deploy.DeployStatus;
 import io.github.casy82.hub.deploy.ServiceState;
 import io.github.casy82.hub.git.GitClient.CommitInfo;
+import io.github.casy82.hub.process.Outputs;
 import io.github.casy82.hub.project.ProjectConfig;
 import io.github.casy82.hub.project.ServiceConfig;
 
@@ -49,24 +49,28 @@ public class FailureIssueReporter implements DeployListener {
     @Override
     public void onSynced(ProjectConfig project, ServiceConfig service, ServiceState before, ServiceState after) {
         Optional<String> repo = service.issueRepoOrDerived();
-        String key0 = project.id() + "/" + service.name();
+        String serviceKey = project.id() + "/" + service.name();
         if (repo.isEmpty()) {
-            log.debug("[{}] 이슈를 올릴 저장소를 알 수 없어 건너뜀 (issue-repo 설정 필요)", key0);
+            log.debug("[{}] 이슈를 올릴 저장소를 알 수 없어 건너뜀 (issue-repo 설정 필요)", serviceKey);
             return;
         }
         boolean failed = after.status() == DeployStatus.FAILED || after.status() == DeployStatus.ROLLED_BACK;
         if (failed) {
-            String key = after.status() + "|" + (after.failedCommit() == null ? "" : after.failedCommit().sha())
-                    + "|" + after.message();
-            if (key.equals(lastReported.put(key0, key))) {
+            if (failureKey(after).equals(lastReported.put(serviceKey, failureKey(after)))) {
                 return;
             }
-            executor.execute(() -> safely(key0, () -> reportFailure(repo.get(), project, service, after)));
+            executor.execute(() -> safely(serviceKey, () -> reportFailure(repo.get(), project, service, after)));
         } else if (after.status() == DeployStatus.RUNNING && before.status() != DeployStatus.RUNNING) {
             // 앱을 다시 켠 뒤 첫 성공(PENDING → RUNNING)도 확인해서, 꺼져 있는 동안 남은 이슈를 닫는다
-            lastReported.remove(key0);
-            executor.execute(() -> safely(key0, () -> reportRecovery(repo.get(), project, service, after)));
+            lastReported.remove(serviceKey);
+            executor.execute(() -> safely(serviceKey, () -> reportRecovery(repo.get(), project, service, after)));
         }
+    }
+
+    /** 상태·커밋·메시지가 모두 같으면 같은 실패로 본다 */
+    private static String failureKey(ServiceState state) {
+        return state.status() + "|" + (state.failedCommit() == null ? "" : state.failedCommit().sha()) + "|"
+                + state.message();
     }
 
     private void reportFailure(String repo, ProjectConfig project, ServiceConfig service, ServiceState state) {
@@ -121,7 +125,7 @@ public class FailureIssueReporter implements DeployListener {
 
         if (config.includeOutput() && state.lastOutput() != null && !state.lastOutput().isBlank()) {
             b.append("<details><summary>빌드·기동 출력 (마지막 ").append(OUTPUT_LINES).append("줄)</summary>\n\n```\n")
-                    .append(lastLines(failureOutput(state.lastOutput())).replace("```", "'''"))
+                    .append(Outputs.lastLines(failureOutput(state.lastOutput()), OUTPUT_LINES).replace("```", "'''"))
                     .append("\n```\n</details>\n\n");
         }
         b.append("다음 배포가 성공하면 이 이슈는 자동으로 닫힙니다.");
@@ -142,12 +146,6 @@ public class FailureIssueReporter implements DeployListener {
     private static String failureOutput(String output) {
         int marker = output.indexOf("\n----- ");
         return marker > 0 ? output.substring(0, marker) : output;
-    }
-
-    private static String lastLines(String output) {
-        String[] lines = output.strip().split("\n");
-        return lines.length <= OUTPUT_LINES ? output.strip()
-                : String.join("\n", Arrays.copyOfRange(lines, lines.length - OUTPUT_LINES, lines.length));
     }
 
     private static String escape(String s) {

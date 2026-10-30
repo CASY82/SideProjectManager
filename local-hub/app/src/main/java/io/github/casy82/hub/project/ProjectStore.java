@@ -56,7 +56,7 @@ public class ProjectStore {
     }
 
     public Path root() {
-        return props.resolvedDataDir().resolve("projects");
+        return props.projectsDir();
     }
 
     public Path dir(String id) {
@@ -159,8 +159,8 @@ public class ProjectStore {
         if (config.service(service).isEmpty()) {
             throw new IllegalArgumentException("없는 서비스입니다: " + service);
         }
-        if (ref != null && (!ref.matches("[A-Za-z0-9._/-]{1,100}") || ref.startsWith("-"))) {
-            throw new IllegalArgumentException("커밋·태그 형식이 아닙니다: " + ref);
+        if (ref != null) {
+            ProjectYaml.requireRef(ref);
         }
         Map<String, String> pins = new LinkedHashMap<>(config.pins());
         if (ref == null) {

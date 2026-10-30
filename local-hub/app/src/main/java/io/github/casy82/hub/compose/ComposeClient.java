@@ -79,7 +79,7 @@ public class ComposeClient {
      */
     public CommandResult validate(Path dir, String file) {
         CommandResult r = runner.run(dir, List.of("docker", "compose", "-f", file, "config", "-q"));
-        if (r.exitCode() == -1 && r.output().startsWith("명령을 실행할 수 없음")) {
+        if (r.couldNotRun()) {
             return new CommandResult(0, "docker 가 없어 검사를 건너뜀");
         }
         return r;
@@ -108,7 +108,7 @@ public class ComposeClient {
     }
 
     private CommandResult project(String projectId, List<String> args) {
-        Path dir = props.resolvedDataDir().resolve("projects").resolve(projectId);
+        Path dir = props.projectsDir().resolve(projectId);
         List<String> cmd = new ArrayList<>(List.of("docker", "compose", "-p", projectName(projectId),
                 "-f", "compose.yml", "--profile", "*"));
         cmd.addAll(args);

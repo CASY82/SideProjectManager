@@ -116,7 +116,12 @@ public class GitClient {
     public record CommitInfo(String sha, String author, String date, String subject) {
 
         public String shortSha() {
-            return sha.length() > 7 ? sha.substring(0, 7) : sha;
+            return GitClient.shortSha(sha);
         }
+    }
+
+    /** 화면·메시지에 쓰는 앞 7자리 */
+    public static String shortSha(String sha) {
+        return sha.length() > 7 ? sha.substring(0, 7) : sha;
     }
 }

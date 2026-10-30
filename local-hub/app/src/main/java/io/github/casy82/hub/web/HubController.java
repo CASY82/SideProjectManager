@@ -1,9 +1,7 @@
 package io.github.casy82.hub.web;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,8 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.github.casy82.hub.compose.ComposeClient;
 import io.github.casy82.hub.deploy.DeployHistory;
+import io.github.casy82.hub.deploy.DeployStatus;
 import io.github.casy82.hub.deploy.PollScheduler;
+import io.github.casy82.hub.deploy.ServiceState;
 import io.github.casy82.hub.git.GitClient;
+import io.github.casy82.hub.git.GitClient.CommitInfo;
 import io.github.casy82.hub.process.CommandResult;
 import io.github.casy82.hub.project.ConfigHistory;
 import io.github.casy82.hub.project.ProjectRegistry;
@@ -61,22 +62,38 @@ public class HubController {
 
     // ---------- 프로젝트 ----------
 
+    /** 대시보드 목록·상세 화면에 보이는 프로젝트 */
+    public record ProjectView(String id, String name, String description, List<ServiceView> services) {
+
+        static ProjectView of(ProjectRegistry.Project p) {
+            List<ServiceView> services = p.config().services().stream()
+                    .map(s -> new ServiceView(s.name(), s.repo(), s.branch(), p.config().pins().get(s.name()),
+                            p.states().get(s.name())))
+                    .toList();
+            return new ProjectView(p.id(), p.config().name(), p.config().description(), services);
+        }
+    }
+
+    /** @param pin 고정한 커밋·태그. 없으면 null */
+    public record ServiceView(String name, String repo, String branch, String pin, ServiceState state) {
+    }
+
     @GetMapping("/projects")
-    public List<Map<String, Object>> list() {
-        return registry.all().stream().map(HubController::view).toList();
+    public List<ProjectView> list() {
+        return registry.all().stream().map(ProjectView::of).toList();
     }
 
     public record CreateRequest(String id, String name) {
     }
 
     @PostMapping("/projects")
-    public ResponseEntity<Map<String, Object>> create(@RequestBody CreateRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(view(projects.create(req.id(), req.name())));
+    public ResponseEntity<ProjectView> create(@RequestBody CreateRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ProjectView.of(projects.create(req.id(), req.name())));
     }
 
     @GetMapping("/projects/{id}")
-    public Map<String, Object> get(@PathVariable String id) {
-        return view(project(id));
+    public ProjectView get(@PathVariable String id) {
+        return ProjectView.of(project(id));
     }
 
     @DeleteMapping("/projects/{id}")
@@ -127,22 +144,29 @@ public class HubController {
         return output(compose.logs(id, s.composeServiceOrName(), Math.min(tail, 2000)));
     }
 
-    /** 고정할 버전 후보: 브랜치의 최근 커밋, 태그, 예전에 성공한 배포 */
+    /**
+     * 고정할 버전 후보
+     * @param commits  브랜치의 최근 커밋
+     * @param deployed 예전에 성공한 배포 (같은 커밋은 가장 최근 것 하나)
+     */
+    public record VersionCandidates(String pin, String branch, List<CommitInfo> commits, List<GitClient.Tag> tags,
+            List<DeployHistory.Entry> deployed) {
+    }
+
     @GetMapping("/projects/{id}/services/{service}/versions")
-    public Map<String, Object> versions(@PathVariable String id, @PathVariable String service) {
+    public VersionCandidates versions(@PathVariable String id, @PathVariable String service) {
         ProjectRegistry.Project p = project(id);
         ServiceConfig s = service(id, service);
         Path dir = store.workspace(id).resolve(service);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("pin", p.config().pins().get(service));
-        out.put("branch", s.branch());
-        out.put("commits", git.isCloned(dir) ? git.recentCommits(dir, "origin/" + s.branch(), 30) : List.of());
-        out.put("tags", git.isCloned(dir) ? git.tags(dir) : List.of());
-        // 같은 커밋을 여러 번 배포했으면 가장 최근 것만 보여준다
+        boolean cloned = git.isCloned(dir);
         Set<String> seen = new HashSet<>();
-        out.put("deployed", history.read(id, service, 500).stream()
-                .filter(e -> e.status().equals("RUNNING") && seen.add(e.sha())).limit(20).toList());
-        return out;
+        List<DeployHistory.Entry> deployed = history.read(id, service, 500).stream()
+                .filter(e -> e.status() == DeployStatus.RUNNING && seen.add(e.sha()))
+                .limit(20)
+                .toList();
+        return new VersionCandidates(p.config().pins().get(service), s.branch(),
+                cloned ? git.recentCommits(dir, "origin/" + s.branch(), 30) : List.of(),
+                cloned ? git.tags(dir) : List.of(), deployed);
     }
 
     public record PinRequest(String ref) {
@@ -224,25 +248,6 @@ public class HubController {
     private ServiceConfig service(String id, String service) {
         return project(id).config().service(service)
                 .orElseThrow(() -> new NotFound("없는 서비스입니다: " + id + "/" + service));
-    }
-
-    private static Map<String, Object> view(ProjectRegistry.Project p) {
-        List<Map<String, Object>> services = new ArrayList<>();
-        for (ServiceConfig s : p.config().services()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("name", s.name());
-            m.put("repo", s.repo());
-            m.put("branch", s.branch());
-            m.put("pin", p.config().pins().get(s.name()));
-            m.put("state", p.states().get(s.name()));
-            services.add(m);
-        }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("id", p.id());
-        out.put("name", p.config().name());
-        out.put("description", p.config().description());
-        out.put("services", services);
-        return out;
     }
 
     private static Map<String, String> output(CommandResult result) {

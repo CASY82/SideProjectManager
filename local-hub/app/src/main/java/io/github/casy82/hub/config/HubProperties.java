@@ -60,4 +60,9 @@ public record HubProperties(
     public Path resolvedDataDir() {
         return resolvedBaseDir().resolve(dataDir).normalize();
     }
+
+    /** 프로젝트마다 하나씩 있는 디렉터리들의 부모 (data/projects) */
+    public Path projectsDir() {
+        return resolvedDataDir().resolve("projects");
+    }
 }

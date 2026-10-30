@@ -41,7 +41,8 @@ class DeployHistoryTest {
         history.onSynced(shop, api, pending, state(DeployStatus.DEPLOYING, a, null));
 
         List<DeployHistory.Entry> all = history.read("shop", null, 10);
-        assertThat(all).extracting(DeployHistory.Entry::status).containsExactly("ROLLED_BACK", "RUNNING", "RUNNING");
+        assertThat(all).extracting(DeployHistory.Entry::status)
+                .containsExactly(DeployStatus.ROLLED_BACK, DeployStatus.RUNNING, DeployStatus.RUNNING);
         assertThat(all.getFirst().sha()).isEqualTo("bbbbbbb2");
         assertThat(history.read("shop", "api", 10)).hasSize(2);
         assertThat(history.read("shop", "api", 1)).hasSize(1);

@@ -4,9 +4,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.UnaryOperator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ import io.github.casy82.hub.git.GitClient;
 import io.github.casy82.hub.git.GitClient.CommitInfo;
 import io.github.casy82.hub.process.CommandFailedException;
 import io.github.casy82.hub.process.CommandResult;
+import io.github.casy82.hub.process.Outputs;
 import io.github.casy82.hub.project.ProjectConfig;
 import io.github.casy82.hub.project.ProjectRegistry;
 import io.github.casy82.hub.project.ProjectStore;
@@ -92,66 +94,87 @@ public class DeployService {
     }
 
     private SyncResult doSync(ProjectRegistry.Project project, ServiceConfig svc, boolean force) {
-        ProjectConfig config = project.config();
         String name = svc.name();
-        String tag = config.id() + "/" + name;
-        Path dir = store.workspace(config.id()).resolve(name);
-        ServiceState current = project.states().get(name);
         // project.yml 을 compose.yml 보다 먼저 저장한 경우 등. 실패로 남기거나 이슈를 올리지 않고 기다린다
         String composeName = svc.composeServiceOrName();
-        if (!store.composeServices(config.id()).contains(composeName)) {
-            project.states().put(name, current.waiting("compose.yml 에 '" + composeName + "' 서비스 정의가 필요해요"));
+        if (!store.composeServices(project.id()).contains(composeName)) {
+            update(project, name, s -> s.waiting("compose.yml 에 '" + composeName + "' 서비스 정의가 필요해요"));
             return SyncResult.WAITING;
         }
-        String targetRef = config.targetRef(svc);
-        String previous = null;
-        CommitInfo target;
+        Path dir = store.workspace(project.id()).resolve(name);
+        Optional<Checkout> checkout;
         try {
-            if (git.isCloned(dir)) {
-                if (git.ensureRemote(dir, svc.repo())) {
-                    log.info("[{}] 저장소 주소 변경: {}", tag, svc.repo());
-                }
-                git.fetch(dir, svc.branch());
-                previous = git.head(dir);
-                String wanted = git.resolve(dir, targetRef);
-                if (!force && shouldSkip(current, previous, wanted)) {
-                    project.states().put(name, current.checked());
-                    return SyncResult.UNCHANGED;
-                }
-                git.resetHard(dir, wanted);
-            } else {
-                createDirectories(dir.getParent());
-                log.info("[{}] clone {} ({})", tag, svc.repo(), svc.branch());
-                git.cloneRepo(svc.repo(), svc.branch(), dir);
-                if (!targetRef.equals("origin/" + svc.branch())) {
-                    git.fetch(dir, svc.branch());
-                    git.resetHard(dir, git.resolve(dir, targetRef));
-                }
-            }
-            target = git.describe(dir, "HEAD");
+            checkout = checkout(project.config(), svc, project.states().get(name), dir, force);
         } catch (CommandFailedException e) {
-            log.warn("[{}] {}", tag, e.getMessage());
-            project.states().put(name, current.failed(null, e.getMessage(), tail(e.output())));
+            log.warn("[{}] {}", tag(project, svc), e.getMessage());
+            update(project, name, s -> s.failed(null, e.getMessage(), tail(e.output())));
             return SyncResult.FAILED;
         }
+        if (checkout.isEmpty()) {
+            update(project, name, ServiceState::checked);
+            return SyncResult.UNCHANGED;
+        }
+        return deploy(project, svc, dir, checkout.get());
+    }
 
-        project.states().put(name, current.deploying(target));
-        log.info("[{}] {} 배포 시작: {}", tag, target.shortSha(), target.subject());
+    /**
+     * @param previous 바꾸기 전 작업 공간의 커밋. 처음 clone 했으면 null
+     * @param target   이번에 배포할 커밋
+     */
+    private record Checkout(String previous, CommitInfo target) {
 
-        CommandResult result = compose.buildAndUp(config.id(), svc.composeServiceOrName());
+        boolean canRollBack() {
+            return previous != null && !previous.equals(target.sha());
+        }
+    }
+
+    /** 작업 공간을 목표 커밋으로 맞춘다. 이미 맞거나 다시 시도할 필요가 없으면 비어 있다 */
+    private Optional<Checkout> checkout(ProjectConfig config, ServiceConfig svc, ServiceState current, Path dir,
+            boolean force) {
+        String targetRef = config.targetRef(svc);
+        String previous = null;
+        if (git.isCloned(dir)) {
+            if (git.ensureRemote(dir, svc.repo())) {
+                log.info("[{}/{}] 저장소 주소 변경: {}", config.id(), svc.name(), svc.repo());
+            }
+            git.fetch(dir, svc.branch());
+            previous = git.head(dir);
+            String wanted = git.resolve(dir, targetRef);
+            if (!force && shouldSkip(current, previous, wanted)) {
+                return Optional.empty();
+            }
+            git.resetHard(dir, wanted);
+        } else {
+            createDirectories(dir.getParent());
+            log.info("[{}/{}] clone {} ({})", config.id(), svc.name(), svc.repo(), svc.branch());
+            git.cloneRepo(svc.repo(), svc.branch(), dir);
+            if (!targetRef.equals("origin/" + svc.branch())) {
+                git.fetch(dir, svc.branch());
+                git.resetHard(dir, git.resolve(dir, targetRef));
+            }
+        }
+        return Optional.of(new Checkout(previous, git.describe(dir, "HEAD")));
+    }
+
+    private SyncResult deploy(ProjectRegistry.Project project, ServiceConfig svc, Path dir, Checkout checkout) {
+        String name = svc.name();
+        CommitInfo target = checkout.target();
+        update(project, name, s -> s.deploying(target));
+        log.info("[{}] {} 배포 시작: {}", tag(project, svc), target.shortSha(), target.subject());
+
+        CommandResult result = compose.buildAndUp(project.id(), svc.composeServiceOrName());
         if (result.ok()) {
-            log.info("[{}] {} 배포 완료", tag, target.shortSha());
-            project.states().put(name, project.states().get(name).deployed(target, tail(result.output())));
+            log.info("[{}] {} 배포 완료", tag(project, svc), target.shortSha());
+            update(project, name, s -> s.deployed(target, tail(result.output())));
             return SyncResult.DEPLOYED;
         }
 
-        log.warn("[{}] {} 배포 실패 (exit {})", tag, target.shortSha(), result.exitCode());
-        if (previous == null || previous.equals(target.sha())) {
-            project.states().put(name,
-                    project.states().get(name).failed(target, target.shortSha() + " 배포 실패", tail(result.output())));
+        log.warn("[{}] {} 배포 실패 (exit {})", tag(project, svc), target.shortSha(), result.exitCode());
+        if (!checkout.canRollBack()) {
+            update(project, name, s -> s.failed(target, target.shortSha() + " 배포 실패", tail(result.output())));
             return SyncResult.FAILED;
         }
-        return rollback(project, svc, dir, target, previous, result);
+        return rollback(project, svc, dir, target, checkout.previous(), result);
     }
 
     /** 이미 목표 커밋으로 떠 있거나, 같은 커밋이 이미 실패했으면 매 주기마다 다시 시도하지 않는다. */
@@ -167,25 +190,33 @@ public class DeployService {
     private SyncResult rollback(ProjectRegistry.Project project, ServiceConfig svc, Path dir, CommitInfo failed,
             String previous, CommandResult failure) {
         String name = svc.name();
-        String tag = project.id() + "/" + name;
         CommitInfo restored;
         try {
             git.resetHard(dir, previous);
             restored = git.describe(dir, "HEAD");
         } catch (CommandFailedException e) {
-            project.states().put(name, project.states().get(name).failed(failed, "되돌리기 실패: " + e.getMessage(),
+            update(project, name, s -> s.failed(failed, "되돌리기 실패: " + e.getMessage(),
                     tail(failure.output() + "\n" + e.output())));
             return SyncResult.FAILED;
         }
         CommandResult retry = compose.buildAndUp(project.id(), svc.composeServiceOrName());
         String output = tail(failure.output() + "\n----- " + restored.shortSha() + " 로 되돌린 뒤 -----\n" + retry.output());
         if (retry.ok()) {
-            log.info("[{}] {} 로 되돌림", tag, restored.shortSha());
-            project.states().put(name, project.states().get(name).rolledBack(failed, restored, output));
+            log.info("[{}] {} 로 되돌림", tag(project, svc), restored.shortSha());
+            update(project, name, s -> s.rolledBack(failed, restored, output));
             return SyncResult.ROLLED_BACK;
         }
-        project.states().put(name, project.states().get(name).failed(failed, "배포 실패, 되돌린 버전도 기동 실패", output));
+        update(project, name, s -> s.failed(failed, "배포 실패, 되돌린 버전도 기동 실패", output));
         return SyncResult.FAILED;
+    }
+
+    /** 상태는 불변 객체라 바꿀 때마다 새로 만들어 넣는다. 그사이 설정에서 서비스가 빠졌으면 되살리지 않는다 */
+    private static void update(ProjectRegistry.Project project, String service, UnaryOperator<ServiceState> change) {
+        project.states().computeIfPresent(service, (k, state) -> change.apply(state));
+    }
+
+    private static String tag(ProjectRegistry.Project project, ServiceConfig svc) {
+        return project.id() + "/" + svc.name();
     }
 
     private static void createDirectories(Path dir) {
@@ -200,10 +231,7 @@ public class DeployService {
         if (output == null) {
             return "";
         }
-        String[] lines = output.strip().split("\n");
-        if (lines.length <= MAX_OUTPUT_LINES) {
-            return String.join("\n", lines);
-        }
-        return "... (앞부분 생략)\n" + String.join("\n", Arrays.copyOfRange(lines, lines.length - MAX_OUTPUT_LINES, lines.length));
+        String last = Outputs.lastLines(output, MAX_OUTPUT_LINES);
+        return last.length() < output.strip().length() ? "... (앞부분 생략)\n" + last : last;
     }
 }

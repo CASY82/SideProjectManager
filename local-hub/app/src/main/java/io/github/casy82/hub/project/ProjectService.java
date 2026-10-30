@@ -49,20 +49,28 @@ public class ProjectService {
 
     /** 서비스를 특정 커밋·태그로 고정하고 그 버전으로 배포한다. 이미 받아 둔 저장소에서 찾을 수 있는 ref 만 받는다 */
     public void pin(String id, String service, String ref) {
-        Path dir = store.workspace(id).resolve(service);
-        String label = ref;
-        if (git.isCloned(dir)) {
-            try {
-                String sha = git.resolve(dir, ref);
-                label = ref.equals(sha) || sha.startsWith(ref) ? sha.substring(0, 7) : ref + " (" + sha.substring(0, 7) + ")";
-            } catch (CommandFailedException e) {
-                throw new IllegalArgumentException(e.getMessage());
-            }
-        }
-        if (store.setPin(id, service, ref, service + " 를 " + label + " 로 고정")) {
+        // git 명령 인자로 넘기기 전에 형식부터 확인한다
+        ProjectYaml.requireRef(ref);
+        if (store.setPin(id, service, ref, service + " 를 " + pinLabel(id, service, ref) + " 로 고정")) {
             registry.reload(id);
             poller.triggerAsync(id, service, false);
         }
+    }
+
+    /** 버전 기록에 남길 이름. 태그·브랜치면 "v1.0 (abc1234)", 커밋이면 "abc1234" */
+    private String pinLabel(String id, String service, String ref) {
+        Path dir = store.workspace(id).resolve(service);
+        if (!git.isCloned(dir)) {
+            return ref;
+        }
+        String sha;
+        try {
+            sha = git.resolve(dir, ref);
+        } catch (CommandFailedException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        String shortSha = GitClient.shortSha(sha);
+        return sha.startsWith(ref) ? shortSha : ref + " (" + shortSha + ")";
     }
 
     public void unpin(String id, String service) {
@@ -75,7 +83,7 @@ public class ProjectService {
     /** 설정을 예전 버전으로 되돌리고 모든 서비스를 다시 띄운다 */
     public boolean restore(String id, String sha) {
         ConfigHistory history = store.history(id);
-        boolean changed = history.restore(sha, "버전 " + sha.substring(0, Math.min(7, sha.length())) + " 으로 되돌림");
+        boolean changed = history.restore(sha, "버전 " + GitClient.shortSha(sha) + " 으로 되돌림");
         if (changed) {
             deployAll(registry.reload(id), true);
         }

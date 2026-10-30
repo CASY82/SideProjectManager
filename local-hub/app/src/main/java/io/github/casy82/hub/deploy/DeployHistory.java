@@ -34,29 +34,28 @@ public class DeployHistory implements DeployListener {
      * @param status RUNNING(배포 성공), ROLLED_BACK, FAILED
      * @param sha    배포했거나 실패한 커밋 (git 명령 자체가 실패했으면 비어 있음)
      */
-    public record Entry(Instant time, String service, String status, String sha, String subject, String author,
+    public record Entry(Instant time, String service, DeployStatus status, String sha, String subject, String author,
             String message) {
     }
 
     @Override
     public void onSynced(ProjectConfig project, ServiceConfig service, ServiceState before, ServiceState after) {
-        CommitInfo commit = switch (after.status()) {
-            case RUNNING -> after.deployedCommit();
-            case ROLLED_BACK, FAILED -> after.failedCommit();
-            default -> null;
-        };
-        if (after.status() != DeployStatus.RUNNING && after.status() != DeployStatus.ROLLED_BACK
-                && after.status() != DeployStatus.FAILED) {
+        if (!isResult(after.status())) {
             return;
         }
-        append(project.id(), new Entry(Instant.now(), service.name(), after.status().name(),
+        CommitInfo commit = after.status() == DeployStatus.RUNNING ? after.deployedCommit() : after.failedCommit();
+        append(project.id(), new Entry(Instant.now(), service.name(), after.status(),
                 commit == null ? "" : commit.sha(), commit == null ? "" : commit.subject(),
                 commit == null ? "" : commit.author(), after.message()));
     }
 
+    private static boolean isResult(DeployStatus status) {
+        return status == DeployStatus.RUNNING || status == DeployStatus.ROLLED_BACK || status == DeployStatus.FAILED;
+    }
+
     synchronized void append(String projectId, Entry e) {
         Path file = file(projectId);
-        String line = String.join("\t", e.time().toString(), clean(e.service()), clean(e.status()), clean(e.sha()),
+        String line = String.join("\t", e.time().toString(), clean(e.service()), e.status().name(), clean(e.sha()),
                 clean(e.subject()), clean(e.author()), clean(e.message())) + "\n";
         try {
             Files.createDirectories(file.getParent());
@@ -84,7 +83,7 @@ public class DeployHistory implements DeployListener {
             if (f.length < 7 || (service != null && !service.equals(f[1]))) {
                 continue;
             }
-            out.add(new Entry(Instant.parse(f[0]), f[1], f[2], f[3], f[4], f[5], f[6]));
+            out.add(new Entry(Instant.parse(f[0]), f[1], DeployStatus.valueOf(f[2]), f[3], f[4], f[5], f[6]));
         }
         return out;
     }
