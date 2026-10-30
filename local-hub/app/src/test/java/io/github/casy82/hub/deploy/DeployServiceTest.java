@@ -31,6 +31,7 @@ class DeployServiceTest {
     Path base;
 
     FakeRunner runner;
+    ServiceStates states;
     ProjectRegistry registry;
     DeployService service;
     List<String> events = new ArrayList<>();
@@ -51,14 +52,15 @@ class DeployServiceTest {
         Files.writeString(project.resolve("compose.yml"), "services:\n  api:\n    build: ./workspace/api\n");
         runner = new FakeRunner(project.resolve("workspace/api"));
         ComposeClient compose = new ComposeClient(runner, props);
-        ProjectStore store = new ProjectStore(props, runner, compose);
-        registry = new ProjectRegistry(store);
-        service = new DeployService(registry, store, new GitClient(runner), compose,
+        ProjectStore store = new ProjectStore(props, runner);
+        states = new ServiceStates();
+        registry = new ProjectRegistry(store, List.of(states));
+        service = new DeployService(registry, states, store, new GitClient(runner), compose,
                 List.of((p, svc, before, after) -> events.add(before.status() + "->" + after.status())));
     }
 
     ServiceState state() {
-        return registry.get("shop").orElseThrow().states().get("api");
+        return states.get("shop", "api").orElseThrow();
     }
 
     SyncResult sync(boolean force) {
@@ -231,7 +233,7 @@ class DeployServiceTest {
     void 다른_확인이_돌고_있으면_주기_확인은_건너뛰고_force_는_기다렸다가_실행한다() throws Exception {
         runner.remote = "aaaaaaa1";
         sync(false);
-        var lock = registry.get("shop").orElseThrow().locks().get("api");
+        var lock = states.lock("shop", "api");
         lock.lock();
         try {
             // 잠금은 재진입이 되므로 다른 스레드에서 부른다

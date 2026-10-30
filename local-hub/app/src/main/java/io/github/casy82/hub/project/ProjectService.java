@@ -1,35 +1,35 @@
 package io.github.casy82.hub.project;
 
 import java.nio.file.Path;
-import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import io.github.casy82.hub.InvalidInputException;
 import io.github.casy82.hub.compose.ComposeClient;
-import io.github.casy82.hub.deploy.PollScheduler;
 import io.github.casy82.hub.git.GitClient;
 import io.github.casy82.hub.process.CommandFailedException;
+import io.github.casy82.hub.process.CommandResult;
 
-/** 대시보드에서 하는 프로젝트 변경을 한곳에 모았다. 파일 저장 → 버전 기록 → 다시 읽기 → 필요한 배포 순서로 처리한다. */
+/** 대시보드에서 하는 프로젝트 변경을 한곳에 모았다. 검사 → 파일 저장·버전 기록 → 다시 읽기 → 필요한 배포 순서로 처리한다. */
 @Service
 public class ProjectService {
 
     private final ProjectStore store;
     private final ProjectRegistry registry;
-    private final PollScheduler poller;
+    private final DeployTrigger deploys;
     private final ComposeClient compose;
     private final GitClient git;
 
-    public ProjectService(ProjectStore store, ProjectRegistry registry, PollScheduler poller, ComposeClient compose,
+    public ProjectService(ProjectStore store, ProjectRegistry registry, DeployTrigger deploys, ComposeClient compose,
             GitClient git) {
         this.store = store;
         this.registry = registry;
-        this.poller = poller;
+        this.deploys = deploys;
         this.compose = compose;
         this.git = git;
     }
 
-    public ProjectRegistry.Project create(String id, String name) {
+    public ProjectConfig create(String id, String name) {
         store.create(id, name);
         return registry.reload(id);
     }
@@ -39,10 +39,13 @@ public class ProjectService {
      * @return 새 버전이 생겼으면 true
      */
     public boolean saveFile(String id, String file, String content, String message) {
+        boolean composeFile = ProjectStore.COMPOSE_FILE.equals(file);
+        if (composeFile) {
+            requireValidCompose(id, content);
+        }
         boolean changed = store.saveFile(id, file, content, message);
         if (changed) {
-            ProjectRegistry.Project project = registry.reload(id);
-            deployAll(project, ProjectStore.COMPOSE_FILE.equals(file));
+            deployAll(registry.reload(id), composeFile);
         }
         return changed;
     }
@@ -53,7 +56,7 @@ public class ProjectService {
         ProjectYaml.requireRef(ref);
         if (store.setPin(id, service, ref, service + " 를 " + pinLabel(id, service, ref) + " 로 고정")) {
             registry.reload(id);
-            poller.triggerAsync(id, service, false);
+            deploys.requestSync(id, service, false);
         }
     }
 
@@ -67,7 +70,7 @@ public class ProjectService {
         try {
             sha = git.resolve(dir, ref);
         } catch (CommandFailedException e) {
-            throw new IllegalArgumentException(e.getMessage());
+            throw new InvalidInputException(e.getMessage());
         }
         String shortSha = GitClient.shortSha(sha);
         return sha.startsWith(ref) ? shortSha : ref + " (" + shortSha + ")";
@@ -76,7 +79,7 @@ public class ProjectService {
     public void unpin(String id, String service) {
         if (store.setPin(id, service, null, service + " 고정 해제 (브랜치 최신을 따라감)")) {
             registry.reload(id);
-            poller.triggerAsync(id, service, false);
+            deploys.requestSync(id, service, false);
         }
     }
 
@@ -93,7 +96,7 @@ public class ProjectService {
     /** 프로젝트를 지운다. removeContainers 면 컨테이너도 내린다 (볼륨은 남는다) */
     public void delete(String id, boolean removeContainers) {
         if (registry.get(id).isEmpty()) {
-            throw new IllegalArgumentException("없는 프로젝트입니다: " + id);
+            throw new InvalidInputException("없는 프로젝트입니다: " + id);
         }
         if (removeContainers) {
             compose.down(id);
@@ -102,10 +105,17 @@ public class ProjectService {
         store.delete(id);
     }
 
-    private void deployAll(ProjectRegistry.Project project, boolean force) {
-        List<ServiceConfig> services = project.config().services();
-        for (ServiceConfig s : services) {
-            poller.triggerAsync(project.id(), s.name(), force);
+    /** docker compose config 로 문법을 확인한다. 파일 안의 상대 경로가 맞도록 프로젝트 디렉터리 기준으로 본다 */
+    private void requireValidCompose(String id, String content) {
+        CommandResult r = compose.validate(store.requireExisting(id), content);
+        if (!r.ok()) {
+            throw new InvalidInputException("compose.yml 검사 실패:\n" + r.output().strip());
+        }
+    }
+
+    private void deployAll(ProjectConfig project, boolean force) {
+        for (ServiceConfig s : project.services()) {
+            deploys.requestSync(project.id(), s.name(), force);
         }
     }
 }

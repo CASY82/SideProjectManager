@@ -19,15 +19,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.github.casy82.hub.InvalidInputException;
 import io.github.casy82.hub.compose.ComposeClient;
 import io.github.casy82.hub.deploy.DeployHistory;
 import io.github.casy82.hub.deploy.DeployStatus;
-import io.github.casy82.hub.deploy.PollScheduler;
 import io.github.casy82.hub.deploy.ServiceState;
+import io.github.casy82.hub.deploy.ServiceStates;
 import io.github.casy82.hub.git.GitClient;
 import io.github.casy82.hub.git.GitClient.CommitInfo;
 import io.github.casy82.hub.process.CommandResult;
 import io.github.casy82.hub.project.ConfigHistory;
+import io.github.casy82.hub.project.DeployTrigger;
+import io.github.casy82.hub.project.ProjectConfig;
 import io.github.casy82.hub.project.ProjectRegistry;
 import io.github.casy82.hub.project.ProjectService;
 import io.github.casy82.hub.project.ProjectStore;
@@ -44,17 +47,19 @@ public class HubController {
     private final ProjectRegistry registry;
     private final ProjectStore store;
     private final ProjectService projects;
-    private final PollScheduler poller;
+    private final ServiceStates states;
+    private final DeployTrigger deploys;
     private final ComposeClient compose;
     private final DeployHistory history;
     private final GitClient git;
 
-    public HubController(ProjectRegistry registry, ProjectStore store, ProjectService projects, PollScheduler poller,
-            ComposeClient compose, DeployHistory history, GitClient git) {
+    public HubController(ProjectRegistry registry, ProjectStore store, ProjectService projects, ServiceStates states,
+            DeployTrigger deploys, ComposeClient compose, DeployHistory history, GitClient git) {
         this.registry = registry;
         this.store = store;
         this.projects = projects;
-        this.poller = poller;
+        this.states = states;
+        this.deploys = deploys;
         this.compose = compose;
         this.history = history;
         this.git = git;
@@ -65,12 +70,12 @@ public class HubController {
     /** 대시보드 목록·상세 화면에 보이는 프로젝트 */
     public record ProjectView(String id, String name, String description, List<ServiceView> services) {
 
-        static ProjectView of(ProjectRegistry.Project p) {
-            List<ServiceView> services = p.config().services().stream()
-                    .map(s -> new ServiceView(s.name(), s.repo(), s.branch(), p.config().pins().get(s.name()),
-                            p.states().get(s.name())))
+        static ProjectView of(ProjectConfig p, ServiceStates states) {
+            List<ServiceView> services = p.services().stream()
+                    .map(s -> new ServiceView(s.name(), s.repo(), s.branch(), p.pins().get(s.name()),
+                            states.get(p.id(), s.name()).orElse(null)))
                     .toList();
-            return new ProjectView(p.id(), p.config().name(), p.config().description(), services);
+            return new ProjectView(p.id(), p.name(), p.description(), services);
         }
     }
 
@@ -80,7 +85,7 @@ public class HubController {
 
     @GetMapping("/projects")
     public List<ProjectView> list() {
-        return registry.all().stream().map(ProjectView::of).toList();
+        return registry.all().stream().map(p -> ProjectView.of(p, states)).toList();
     }
 
     public record CreateRequest(String id, String name) {
@@ -88,12 +93,12 @@ public class HubController {
 
     @PostMapping("/projects")
     public ResponseEntity<ProjectView> create(@RequestBody CreateRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ProjectView.of(projects.create(req.id(), req.name())));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ProjectView.of(projects.create(req.id(), req.name()), states));
     }
 
     @GetMapping("/projects/{id}")
     public ProjectView get(@PathVariable String id) {
-        return ProjectView.of(project(id));
+        return ProjectView.of(project(id), states);
     }
 
     @DeleteMapping("/projects/{id}")
@@ -133,7 +138,7 @@ public class HubController {
     public ResponseEntity<Map<String, String>> deploy(@PathVariable String id, @PathVariable String service,
             @RequestParam(defaultValue = "false") boolean force) {
         service(id, service);
-        poller.triggerAsync(id, service, force);
+        deploys.requestSync(id, service, force);
         return ResponseEntity.accepted().body(Map.of("project", id, "service", service, "result", "queued"));
     }
 
@@ -155,7 +160,7 @@ public class HubController {
 
     @GetMapping("/projects/{id}/services/{service}/versions")
     public VersionCandidates versions(@PathVariable String id, @PathVariable String service) {
-        ProjectRegistry.Project p = project(id);
+        ProjectConfig p = project(id);
         ServiceConfig s = service(id, service);
         Path dir = store.workspace(id).resolve(service);
         boolean cloned = git.isCloned(dir);
@@ -164,7 +169,7 @@ public class HubController {
                 .filter(e -> e.status() == DeployStatus.RUNNING && seen.add(e.sha()))
                 .limit(20)
                 .toList();
-        return new VersionCandidates(p.config().pins().get(service), s.branch(),
+        return new VersionCandidates(p.pins().get(service), s.branch(),
                 cloned ? git.recentCommits(dir, "origin/" + s.branch(), 30) : List.of(),
                 cloned ? git.tags(dir) : List.of(), deployed);
     }
@@ -176,7 +181,7 @@ public class HubController {
     public Map<String, Object> pin(@PathVariable String id, @PathVariable String service, @RequestBody PinRequest req) {
         service(id, service);
         if (req.ref() == null || req.ref().isBlank()) {
-            throw new IllegalArgumentException("고정할 커밋이나 태그를 적어 주세요");
+            throw new InvalidInputException("고정할 커밋이나 태그를 적어 주세요");
         }
         projects.pin(id, service, req.ref().strip());
         return Map.of("pinned", req.ref().strip());
@@ -225,8 +230,8 @@ public class HubController {
         return output(compose.infraPs());
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, String>> badRequest(IllegalArgumentException e) {
+    @ExceptionHandler(InvalidInputException.class)
+    public ResponseEntity<Map<String, String>> badRequest(InvalidInputException e) {
         return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
     }
 
@@ -241,12 +246,12 @@ public class HubController {
         }
     }
 
-    private ProjectRegistry.Project project(String id) {
+    private ProjectConfig project(String id) {
         return registry.get(id).orElseThrow(() -> new NotFound("없는 프로젝트입니다: " + id));
     }
 
     private ServiceConfig service(String id, String service) {
-        return project(id).config().service(service)
+        return project(id).service(service)
                 .orElseThrow(() -> new NotFound("없는 서비스입니다: " + id + "/" + service));
     }
 

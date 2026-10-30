@@ -15,6 +15,8 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 
+import io.github.casy82.hub.InvalidInputException;
+
 /** project.yml / pins.yml 읽기·쓰기와 검증 */
 public final class ProjectYaml {
 
@@ -27,27 +29,7 @@ public final class ProjectYaml {
     private ProjectYaml() {
     }
 
-    public static String template(String id, String name) {
-        return """
-                # 프로젝트 설정. 저장할 때마다 버전으로 남고, 버전 탭에서 비교하거나 되돌릴 수 있어요.
-                name: %s
-                description: ""
-
-                # 감시할 저장소. name 은 compose.yml 의 서비스 이름과 같게 맞춘다.
-                services: []
-                # services:
-                #   - name: api
-                #     repo: https://github.com/your-team/api.git
-                #     branch: main
-                #   - name: web
-                #     repo: git@github.com:your-team/web.git
-                #     branch: develop
-                #     compose-service: web        # compose 서비스 이름이 name 과 다를 때만
-                #     issue-repo: your-team/web   # 실패 이슈를 올릴 저장소. 비우면 repo 주소에서 알아낸다
-                """.formatted(quote(name == null || name.isBlank() ? id : name));
-    }
-
-    /** 형식이 틀리면 사람이 읽을 수 있는 메시지로 IllegalArgumentException 을 던진다 */
+    /** 형식이 틀리면 사람이 읽을 수 있는 메시지로 InvalidInputException 을 던진다 */
     public static ProjectConfig parse(String id, String projectYaml, String pinsYaml) {
         Map<String, Object> root = load(projectYaml, "project.yml");
         String name = string(root.get("name"));
@@ -62,19 +44,19 @@ public final class ProjectYaml {
             return List.of();
         }
         if (!(list instanceof List<?> items)) {
-            throw new IllegalArgumentException("services 는 목록이어야 합니다");
+            throw new InvalidInputException("services 는 목록이어야 합니다");
         }
         List<ServiceConfig> services = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (Object item : items) {
             if (!(item instanceof Map<?, ?> m)) {
-                throw new IllegalArgumentException("services 의 각 항목은 name, repo 를 가진 객체여야 합니다");
+                throw new InvalidInputException("services 의 각 항목은 name, repo 를 가진 객체여야 합니다");
             }
             ServiceConfig s = new ServiceConfig(string(m.get("name")), string(m.get("repo")),
                     string(m.get("branch")), string(m.get("compose-service")), string(m.get("issue-repo")));
             validate(s);
             if (!seen.add(s.name())) {
-                throw new IllegalArgumentException("서비스 이름 '" + s.name() + "' 이 두 번 나옵니다");
+                throw new InvalidInputException("서비스 이름 '" + s.name() + "' 이 두 번 나옵니다");
             }
             services.add(s);
         }
@@ -83,24 +65,24 @@ public final class ProjectYaml {
 
     private static void validate(ServiceConfig s) {
         if (s.name() == null || !NAME.matcher(s.name()).matches()) {
-            throw new IllegalArgumentException("서비스 이름 '" + s.name() + "' 은 영문 소문자, 숫자, - 만 쓸 수 있습니다");
+            throw new InvalidInputException("서비스 이름 '" + s.name() + "' 은 영문 소문자, 숫자, - 만 쓸 수 있습니다");
         }
         if (s.repo() == null || s.repo().isBlank()) {
-            throw new IllegalArgumentException("서비스 '" + s.name() + "' 에 repo 가 없습니다");
+            throw new InvalidInputException("서비스 '" + s.name() + "' 에 repo 가 없습니다");
         }
         // 아래 값들은 git·docker 명령 인자로 들어가므로 옵션(-로 시작)으로 해석될 수 있는 값은 막는다
         if (s.repo().strip().startsWith("-") || s.repo().chars().anyMatch(Character::isWhitespace)) {
-            throw new IllegalArgumentException("서비스 '" + s.name() + "' 의 repo 주소 형식이 아닙니다: " + s.repo());
+            throw new InvalidInputException("서비스 '" + s.name() + "' 의 repo 주소 형식이 아닙니다: " + s.repo());
         }
         if (!BRANCH.matcher(s.branch()).matches()) {
-            throw new IllegalArgumentException("서비스 '" + s.name() + "' 의 branch 형식이 아닙니다: " + s.branch());
+            throw new InvalidInputException("서비스 '" + s.name() + "' 의 branch 형식이 아닙니다: " + s.branch());
         }
         if (s.composeService() != null && !COMPOSE_NAME.matcher(s.composeService()).matches()) {
-            throw new IllegalArgumentException(
+            throw new InvalidInputException(
                     "서비스 '" + s.name() + "' 의 compose-service 형식이 아닙니다: " + s.composeService());
         }
         if (s.issueRepo() != null && !s.issueRepo().isBlank() && !ISSUE_REPO.matcher(s.issueRepo().strip()).matches()) {
-            throw new IllegalArgumentException("서비스 '" + s.name() + "' 의 issue-repo 는 owner/repo 형식이어야 합니다");
+            throw new InvalidInputException("서비스 '" + s.name() + "' 의 issue-repo 는 owner/repo 형식이어야 합니다");
         }
     }
 
@@ -121,7 +103,7 @@ public final class ProjectYaml {
     /** 고정할 커밋·태그. git 명령 인자로 들어가므로 옵션(-로 시작)으로 해석될 수 있는 값은 막는다 */
     static void requireRef(String ref) {
         if (ref == null || !REF.matcher(ref).matches() || ref.startsWith("-")) {
-            throw new IllegalArgumentException("커밋·태그 형식이 아닙니다: " + ref);
+            throw new InvalidInputException("커밋·태그 형식이 아닙니다: " + ref);
         }
     }
 
@@ -143,19 +125,15 @@ public final class ProjectYaml {
                 return Map.of();
             }
             if (!(loaded instanceof Map<?, ?>)) {
-                throw new IllegalArgumentException(file + " 의 최상위는 key: value 형식이어야 합니다");
+                throw new InvalidInputException(file + " 의 최상위는 key: value 형식이어야 합니다");
             }
             return (Map<String, Object>) loaded;
         } catch (YAMLException e) {
-            throw new IllegalArgumentException(file + " YAML 형식 오류: " + e.getMessage());
+            throw new InvalidInputException(file + " YAML 형식 오류: " + e.getMessage());
         }
     }
 
     private static String string(Object v) {
         return v == null ? null : String.valueOf(v);
-    }
-
-    private static String quote(String s) {
-        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 }

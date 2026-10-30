@@ -13,12 +13,14 @@ import org.springframework.stereotype.Component;
 import io.github.casy82.hub.compose.ComposeClient;
 import io.github.casy82.hub.config.HubProperties;
 import io.github.casy82.hub.process.CommandResult;
+import io.github.casy82.hub.project.DeployTrigger;
+import io.github.casy82.hub.project.ProjectConfig;
 import io.github.casy82.hub.project.ProjectRegistry;
 import io.github.casy82.hub.project.ServiceConfig;
 
 /** 앱이 뜨면 공통 네트워크와 공통 서비스를 먼저 올리고, 이후 hub.poll-interval 마다 모든 프로젝트의 서비스를 확인한다. */
 @Component
-public class PollScheduler {
+public class PollScheduler implements DeployTrigger {
 
     private static final Logger log = LoggerFactory.getLogger(PollScheduler.class);
 
@@ -53,20 +55,21 @@ public class PollScheduler {
             }
         }
         log.info("프로젝트 {} 개를 {} 마다 확인합니다: {}", registry.all().size(), props.pollInterval(),
-                registry.all().stream().map(ProjectRegistry.Project::id).toList());
+                registry.all().stream().map(ProjectConfig::id).toList());
         scheduler.scheduleWithFixedDelay(this::pollAll, props.pollInterval());
     }
 
     void pollAll() {
-        for (ProjectRegistry.Project project : registry.all()) {
-            for (ServiceConfig svc : project.config().services()) {
-                triggerAsync(project.id(), svc.name(), false);
+        for (ProjectConfig project : registry.all()) {
+            for (ServiceConfig svc : project.services()) {
+                requestSync(project.id(), svc.name(), false);
             }
         }
     }
 
     /** 대시보드나 웹훅에서 즉시 배포를 요청할 때도 쓴다. 요청은 바로 반환하고 배포는 뒤에서 돈다. */
-    public void triggerAsync(String projectId, String service, boolean force) {
+    @Override
+    public void requestSync(String projectId, String service, boolean force) {
         workers.submit(() -> {
             try {
                 deploys.sync(projectId, service, force);

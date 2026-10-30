@@ -1,5 +1,9 @@
 package io.github.casy82.hub.compose;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +22,9 @@ import io.github.casy82.hub.process.CommandRunner;
  */
 @Component
 public class ComposeClient {
+
+    /** 검사용 임시 파일 이름. 프로젝트 디렉터리의 .gitignore 에 들어 있다 */
+    public static final String CHECK_FILE = ".compose-check.yml";
 
     private final CommandRunner runner;
     private final HubProperties props;
@@ -74,15 +81,27 @@ public class ComposeClient {
     }
 
     /**
-     * compose 파일 문법 검사. docker 가 없는 환경이면 검사를 건너뛴다.
-     * @param dir  파일 안의 상대 경로 기준 디렉터리
+     * 저장하기 전의 compose 파일 내용을 문법 검사한다. docker 가 없는 환경이면 검사를 건너뛴다.
+     * 파일 안의 상대 경로가 맞도록 dir 에 임시 파일({@value #CHECK_FILE})로 써서 확인하고 지운다.
+     * @param dir 파일 안의 상대 경로 기준 디렉터리
      */
-    public CommandResult validate(Path dir, String file) {
-        CommandResult r = runner.run(dir, List.of("docker", "compose", "-f", file, "config", "-q"));
-        if (r.couldNotRun()) {
-            return new CommandResult(0, "docker 가 없어 검사를 건너뜀");
+    public CommandResult validate(Path dir, String content) {
+        Path check = dir.resolve(CHECK_FILE);
+        try {
+            Files.writeString(check, content, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        return r;
+        try {
+            CommandResult r = runner.run(dir, List.of("docker", "compose", "-f", CHECK_FILE, "config", "-q"));
+            return r.couldNotRun() ? new CommandResult(0, "docker 가 없어 검사를 건너뜀") : r;
+        } finally {
+            try {
+                Files.deleteIfExists(check);
+            } catch (IOException ignored) {
+                // 다음 검사 때 덮어쓴다
+            }
+        }
     }
 
     public String projectName(String projectId) {

@@ -36,14 +36,16 @@ public class DeployService {
     private static final int MAX_OUTPUT_LINES = 200;
 
     private final ProjectRegistry registry;
+    private final ServiceStates states;
     private final ProjectStore store;
     private final GitClient git;
     private final ComposeClient compose;
     private final List<DeployListener> listeners;
 
-    public DeployService(ProjectRegistry registry, ProjectStore store, GitClient git, ComposeClient compose,
-            List<DeployListener> listeners) {
+    public DeployService(ProjectRegistry registry, ServiceStates states, ProjectStore store, GitClient git,
+            ComposeClient compose, List<DeployListener> listeners) {
         this.registry = registry;
+        this.states = states;
         this.store = store;
         this.git = git;
         this.compose = compose;
@@ -57,11 +59,10 @@ public class DeployService {
      * @param force true 면 커밋이 그대로여도 다시 빌드·기동한다 (대시보드의 "다시 배포" 버튼)
      */
     public SyncResult sync(String projectId, String serviceName, boolean force) {
-        ProjectRegistry.Project project = registry.get(projectId).orElse(null);
-        if (project == null || project.config().service(serviceName).isEmpty()) {
+        if (registry.get(projectId).flatMap(p -> p.service(serviceName)).isEmpty()) {
             return SyncResult.UNKNOWN;
         }
-        ReentrantLock lock = project.locks().get(serviceName);
+        ReentrantLock lock = states.lock(projectId, serviceName);
         // 주기 확인은 겹치면 건너뛰지만, force(설정 저장·다시 배포)는 버리면 바뀐 설정이 반영되지 않으므로 앞 작업을 기다린다
         if (force) {
             lock.lock();
@@ -70,18 +71,18 @@ public class DeployService {
         }
         try {
             // 기다리는 동안 설정이 바뀌었을 수 있으니 잠금을 잡은 뒤 다시 읽는다
-            project = registry.get(projectId).orElse(null);
-            ServiceConfig svc = project == null ? null : project.config().service(serviceName).orElse(null);
-            if (svc == null) {
+            ProjectConfig project = registry.get(projectId).orElse(null);
+            ServiceConfig svc = project == null ? null : project.service(serviceName).orElse(null);
+            ServiceState before = states.get(projectId, serviceName).orElse(null);
+            if (svc == null || before == null) {
                 return SyncResult.UNKNOWN;
             }
-            ServiceState before = project.states().get(serviceName);
-            SyncResult result = doSync(project, svc, force);
+            SyncResult result = doSync(project, svc, before, force);
             if (result != SyncResult.UNCHANGED && result != SyncResult.WAITING) {
-                ServiceState after = project.states().get(serviceName);
+                ServiceState after = states.get(projectId, serviceName).orElse(before);
                 for (DeployListener listener : listeners) {
                     try {
-                        listener.onSynced(project.config(), svc, before, after);
+                        listener.onSynced(project, svc, before, after);
                     } catch (RuntimeException e) {
                         log.warn("[{}/{}] {} 처리 중 오류", projectId, serviceName, listener.getClass().getSimpleName(), e);
                     }
@@ -93,7 +94,7 @@ public class DeployService {
         }
     }
 
-    private SyncResult doSync(ProjectRegistry.Project project, ServiceConfig svc, boolean force) {
+    private SyncResult doSync(ProjectConfig project, ServiceConfig svc, ServiceState current, boolean force) {
         String name = svc.name();
         // project.yml 을 compose.yml 보다 먼저 저장한 경우 등. 실패로 남기거나 이슈를 올리지 않고 기다린다
         String composeName = svc.composeServiceOrName();
@@ -104,7 +105,7 @@ public class DeployService {
         Path dir = store.workspace(project.id()).resolve(name);
         Optional<Checkout> checkout;
         try {
-            checkout = checkout(project.config(), svc, project.states().get(name), dir, force);
+            checkout = checkout(project, svc, current, dir, force);
         } catch (CommandFailedException e) {
             log.warn("[{}] {}", tag(project, svc), e.getMessage());
             update(project, name, s -> s.failed(null, e.getMessage(), tail(e.output())));
@@ -156,7 +157,7 @@ public class DeployService {
         return Optional.of(new Checkout(previous, git.describe(dir, "HEAD")));
     }
 
-    private SyncResult deploy(ProjectRegistry.Project project, ServiceConfig svc, Path dir, Checkout checkout) {
+    private SyncResult deploy(ProjectConfig project, ServiceConfig svc, Path dir, Checkout checkout) {
         String name = svc.name();
         CommitInfo target = checkout.target();
         update(project, name, s -> s.deploying(target));
@@ -187,7 +188,7 @@ public class DeployService {
         };
     }
 
-    private SyncResult rollback(ProjectRegistry.Project project, ServiceConfig svc, Path dir, CommitInfo failed,
+    private SyncResult rollback(ProjectConfig project, ServiceConfig svc, Path dir, CommitInfo failed,
             String previous, CommandResult failure) {
         String name = svc.name();
         CommitInfo restored;
@@ -210,12 +211,11 @@ public class DeployService {
         return SyncResult.FAILED;
     }
 
-    /** 상태는 불변 객체라 바꿀 때마다 새로 만들어 넣는다. 그사이 설정에서 서비스가 빠졌으면 되살리지 않는다 */
-    private static void update(ProjectRegistry.Project project, String service, UnaryOperator<ServiceState> change) {
-        project.states().computeIfPresent(service, (k, state) -> change.apply(state));
+    private void update(ProjectConfig project, String service, UnaryOperator<ServiceState> change) {
+        states.update(project.id(), service, change);
     }
 
-    private static String tag(ProjectRegistry.Project project, ServiceConfig svc) {
+    private static String tag(ProjectConfig project, ServiceConfig svc) {
         return project.id() + "/" + svc.name();
     }
 

@@ -27,7 +27,7 @@ class DeployHistoryTest {
         HubProperties props = new HubProperties(base.toString(), "data", List.of("docker-compose.yml"), "test", "test",
                 List.of(), Duration.ofSeconds(60), Duration.ofMinutes(1), "",
                 new HubProperties.Issues(false, "", "", List.of("local-hub"), true), List.of());
-        DeployHistory history = new DeployHistory(new ProjectStore(props, null, null));
+        DeployHistory history = new DeployHistory(new ProjectStore(props, null));
         ServiceConfig api = new ServiceConfig("api", "r", "main", null, null);
         ServiceConfig web = new ServiceConfig("web", "r", "main", null, null);
         ProjectConfig shop = new ProjectConfig("shop", "쇼핑몰", "", List.of(api, web), Map.of());

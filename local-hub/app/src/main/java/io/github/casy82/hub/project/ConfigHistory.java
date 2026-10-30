@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.github.casy82.hub.InvalidInputException;
 import io.github.casy82.hub.git.GitClient;
 import io.github.casy82.hub.process.CommandResult;
 import io.github.casy82.hub.process.CommandRunner;
@@ -114,10 +115,10 @@ public class ConfigHistory {
 
     private void requireSha(String sha) {
         if (sha == null || !sha.matches("[0-9a-f]{7,40}")) {
-            throw new IllegalArgumentException("버전 id 형식이 아닙니다: " + sha);
+            throw new InvalidInputException("버전 id 형식이 아닙니다: " + sha);
         }
         if (!git("cat-file", "-e", sha + "^{commit}").ok()) {
-            throw new IllegalArgumentException("없는 버전입니다: " + sha);
+            throw new InvalidInputException("없는 버전입니다: " + sha);
         }
     }
 

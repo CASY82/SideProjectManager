@@ -12,7 +12,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import io.github.casy82.hub.compose.ComposeClient;
 import io.github.casy82.hub.config.HubProperties;
 import io.github.casy82.hub.process.CommandResult;
 import io.github.casy82.hub.process.CommandRunner;
@@ -40,7 +39,7 @@ class ProjectStoreTest {
                 new HubProperties.Issues(false, "", "", List.of("local-hub"), true), List.of());
         CommandRunner real = new ProcessCommandRunner(props);
         CommandRunner runner = (dir, cmd) -> cmd.getFirst().equals("docker") ? new CommandResult(0, "") : real.run(dir, cmd);
-        store = new ProjectStore(props, runner, new ComposeClient(runner, props));
+        store = new ProjectStore(props, runner);
     }
 
     @Test
