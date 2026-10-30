@@ -1,0 +1,13 @@
+# Local Hub 실행 시 생기는 것들
+local-hub/hub.yml
+local-hub/.env
+local-hub/workspace/
+
+# 빌드 결과
+target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
