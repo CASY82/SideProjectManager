@@ -58,7 +58,6 @@ services:
       - "${RABBITMQ_UI_PORT:-15672}:15672"   # 관리 화면
     volumes: [rabbitmq-data:/var/lib/rabbitmq]
 
-
 volumes:
   postgres-data:
   mysql-data:
