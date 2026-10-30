@@ -1,0 +1,33 @@
+# 매일 오전 9시(KST) 마감 임박·지남 라벨을 갱신하고 알림을 보낸다. 로직은 .github/scripts/reminders.js
+name: 마감 알림
+
+on:
+  schedule:
+    - cron: "0 0 * * *"   # UTC 00:00 = KST 09:00
+  workflow_dispatch:
+    inputs:
+      today:
+        description: 기준 날짜 (YYYY-MM-DD, 비우면 오늘)
+        required: false
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github
+      - uses: actions/github-script@v8
+        env:
+          TODAY: ${{ inputs.today }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          script: |
+            const run = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/reminders.js`);
+            await run({ github, context, core });

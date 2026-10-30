@@ -1,0 +1,13 @@
+# GitHub Actions 버전을 매주 확인해 업데이트 PR 을 올린다 (무료).
+# 쓰는 언어에 맞게 아래 주석을 풀면 라이브러리도 같이 관리된다.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  # - package-ecosystem: maven      # 또는 gradle, npm, pip
+  #   directory: /
+  #   schedule:
+  #     interval: weekly
+  #   open-pull-requests-limit: 5

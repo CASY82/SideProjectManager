@@ -1,0 +1,68 @@
+name: 기획
+description: 만들고 싶은 기능의 의도와 내용을 적습니다. 개발 할 일은 이 기획에 연결해서 진행률을 봅니다.
+labels: ["type: planning"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        기획자가 쓰는 양식이에요. 개발자는 이 기획을 보고 **할 일** 이슈를 만들 때 "관련 기획" 칸에 이 이슈 번호를 적어요.
+        연결된 할 일은 이 이슈 아래 하위 이슈로 보이고, 모두 끝나면 작성자에게 확인 요청 댓글이 달려요.
+  - type: textarea
+    id: intent
+    attributes:
+      label: 기획 의도
+      description: 왜 이것을 만드나요? 사용자의 어떤 불편이나 기회 때문인가요?
+      placeholder: 예) 처음 온 사용자가 무엇을 해야 할지 몰라 첫 화면에서 바로 나가는 비율이 높다.
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: 목표와 성공 기준
+      description: 무엇이 되면 성공인가요? 가능하면 확인할 수 있는 기준으로 적어 주세요.
+      placeholder: |
+        - 첫 방문자가 3분 안에 첫 게시글을 쓴다
+        - 가입 후 첫 화면 이탈률을 지금보다 낮춘다
+    validations:
+      required: true
+  - type: textarea
+    id: target
+    attributes:
+      label: 대상 사용자
+      placeholder: 예) 처음 가입한 사용자, 관리자
+  - type: textarea
+    id: requirements
+    attributes:
+      label: 주요 내용 (요구사항)
+      description: 사용자가 무엇을 할 수 있어야 하나요? 화면 흐름이나 규칙을 적어 주세요.
+      placeholder: |
+        - [ ] 가입 직후 3단계 안내 화면을 보여준다
+        - [ ] 안내는 언제든 건너뛸 수 있다
+        - [ ] 안내를 끝내면 첫 글쓰기 화면으로 이동한다
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: 이번에 하지 않는 것
+      description: 범위를 분명히 하면 개발 일정이 덜 흔들려요.
+  - type: textarea
+    id: references
+    attributes:
+      label: 참고 자료
+      description: 화면 설계(Figma 등) 링크, 경쟁 서비스, 이미지. 이미지는 여기에 끌어다 놓으면 올라가요.
+  - type: input
+    id: due
+    attributes:
+      label: 마감일
+      description: 이 기획이 반영되길 바라는 날짜 (YYYY-MM-DD). 마감 알림과 주간 요약에 쓰여요.
+      placeholder: "2026-11-30"
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      options:
+        - P0 - 긴급
+        - P1 - 높음
+        - P2 - 보통
+      default: 1
