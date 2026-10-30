@@ -16,6 +16,8 @@ import io.github.casy82.hub.deploy.DeployListener;
 import io.github.casy82.hub.deploy.DeployStatus;
 import io.github.casy82.hub.deploy.ServiceState;
 import io.github.casy82.hub.git.GitClient.CommitInfo;
+import io.github.casy82.hub.project.ProjectConfig;
+import io.github.casy82.hub.project.ServiceConfig;
 
 /**
  * 배포가 실패하거나 롤백되면 서비스마다 이슈 하나를 열고, 또 실패하면 같은 이슈에 댓글을 단다.
@@ -40,48 +42,49 @@ public class FailureIssueReporter implements DeployListener {
         this.executor = executor;
     }
 
-    static String titleFor(String service) {
-        return "[Local Hub] " + service + " 배포 실패";
+    static String titleFor(ProjectConfig project, ServiceConfig service) {
+        return "[Local Hub] " + project.id() + "/" + service.name() + " 배포 실패";
     }
 
     @Override
-    public void onSynced(HubProperties.Service service, ServiceState before, ServiceState after) {
+    public void onSynced(ProjectConfig project, ServiceConfig service, ServiceState before, ServiceState after) {
         Optional<String> repo = service.issueRepoOrDerived();
+        String key0 = project.id() + "/" + service.name();
         if (repo.isEmpty()) {
-            log.debug("[{}] 이슈를 올릴 저장소를 알 수 없어 건너뜀 (issue-repo 설정 필요)", service.name());
+            log.debug("[{}] 이슈를 올릴 저장소를 알 수 없어 건너뜀 (issue-repo 설정 필요)", key0);
             return;
         }
         boolean failed = after.status() == DeployStatus.FAILED || after.status() == DeployStatus.ROLLED_BACK;
         if (failed) {
             String key = after.status() + "|" + (after.failedCommit() == null ? "" : after.failedCommit().sha())
                     + "|" + after.message();
-            if (key.equals(lastReported.put(service.name(), key))) {
+            if (key.equals(lastReported.put(key0, key))) {
                 return;
             }
-            executor.execute(() -> safely(service, () -> reportFailure(repo.get(), service, after)));
+            executor.execute(() -> safely(key0, () -> reportFailure(repo.get(), project, service, after)));
         } else if (after.status() == DeployStatus.RUNNING && before.status() != DeployStatus.RUNNING) {
             // 앱을 다시 켠 뒤 첫 성공(PENDING → RUNNING)도 확인해서, 꺼져 있는 동안 남은 이슈를 닫는다
-            lastReported.remove(service.name());
-            executor.execute(() -> safely(service, () -> reportRecovery(repo.get(), service, after)));
+            lastReported.remove(key0);
+            executor.execute(() -> safely(key0, () -> reportRecovery(repo.get(), project, service, after)));
         }
     }
 
-    private void reportFailure(String repo, HubProperties.Service service, ServiceState state) {
+    private void reportFailure(String repo, ProjectConfig project, ServiceConfig service, ServiceState state) {
         String label = config.labels().getFirst();
-        String body = failureBody(repo, service, state);
-        Optional<IssueTracker.Issue> open = tracker.findOpen(repo, label, titleFor(service.name()));
+        String body = failureBody(repo, project, service, state);
+        Optional<IssueTracker.Issue> open = tracker.findOpen(repo, label, titleFor(project, service));
         if (open.isPresent()) {
             tracker.comment(repo, open.get().number(), body);
             log.info("[{}] 기존 이슈 #{} 에 실패 내용 추가", service.name(), open.get().number());
         } else {
-            IssueTracker.Issue created = tracker.create(repo, titleFor(service.name()), body, config.labels());
+            IssueTracker.Issue created = tracker.create(repo, titleFor(project, service), body, config.labels());
             log.info("[{}] 실패 이슈 생성 {}", service.name(), created.url());
         }
     }
 
-    private void reportRecovery(String repo, HubProperties.Service service, ServiceState state) {
+    private void reportRecovery(String repo, ProjectConfig project, ServiceConfig service, ServiceState state) {
         Optional<IssueTracker.Issue> open =
-                tracker.findOpen(repo, config.labels().getFirst(), titleFor(service.name()));
+                tracker.findOpen(repo, config.labels().getFirst(), titleFor(project, service));
         if (open.isEmpty()) {
             return;
         }
@@ -92,10 +95,10 @@ public class FailureIssueReporter implements DeployListener {
         log.info("[{}] 이슈 #{} 닫음", service.name(), open.get().number());
     }
 
-    String failureBody(String repo, HubProperties.Service service, ServiceState state) {
+    String failureBody(String repo, ProjectConfig project, ServiceConfig service, ServiceState state) {
         StringBuilder b = new StringBuilder();
         boolean rolledBack = state.status() == DeployStatus.ROLLED_BACK;
-        b.append("Local Hub 에서 `").append(service.name()).append("` 배포가 ")
+        b.append("Local Hub 의 ").append(escape(project.name())).append(" 프로젝트에서 `").append(service.name()).append("` 배포가 ")
                 .append(rolledBack ? "실패해서 이전 버전으로 되돌렸어요." : "실패했어요.").append("\n\n");
 
         b.append("| 항목 | 내용 |\n| --- | --- |\n");
@@ -125,13 +128,13 @@ public class FailureIssueReporter implements DeployListener {
         return b.toString();
     }
 
-    private void safely(HubProperties.Service service, Runnable action) {
+    private void safely(String key, Runnable action) {
         try {
             action.run();
         } catch (RuntimeException e) {
             // GitHub 가 안 되면 다음 실패 때 다시 올리도록 기억을 지운다
-            lastReported.remove(service.name());
-            log.warn("[{}] GitHub 이슈 처리 실패: {}", service.name(), e.getMessage());
+            lastReported.remove(key);
+            log.warn("[{}] GitHub 이슈 처리 실패: {}", key, e.getMessage());
         }
     }
 

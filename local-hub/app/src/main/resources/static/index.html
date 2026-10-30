@@ -5,118 +5,398 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Local Hub</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#6b7280; --line:#e5e7eb;
-          --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --run:#1d4ed8; }
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#6b7280; --line:#e5e7eb; --accent:#1d4ed8;
+          --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --run:#1d4ed8; --add:#e8f5ec; --del:#fbeaea; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#111418; --card:#1a1f26; --text:#e5e7eb; --muted:#9ca3af; --line:#2b323c;
-            --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --run:#60a5fa; }
+    :root { --bg:#111418; --card:#1a1f26; --text:#e5e7eb; --muted:#9ca3af; --line:#2b323c; --accent:#60a5fa;
+            --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --run:#60a5fa; --add:#14301f; --del:#3a1c1c; }
   }
   * { box-sizing:border-box }
   body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 system-ui, sans-serif }
-  main { max-width:1100px; margin:0 auto; padding:24px 16px }
-  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:16px }
-  h1 { font-size:20px; margin:0 } h2 { font-size:16px; margin:28px 0 8px }
-  .muted { color:var(--muted) }
+  .layout { display:grid; grid-template-columns:240px 1fr; min-height:100vh }
+  @media (max-width:760px) { .layout { grid-template-columns:1fr } aside { border-right:0; border-bottom:1px solid var(--line) } }
+  aside { border-right:1px solid var(--line); padding:20px 14px; background:var(--card) }
+  main { padding:24px 20px; max-width:1100px; width:100%; min-width:0 }
+  h1 { font-size:18px; margin:0 0 2px } h2 { font-size:18px; margin:0 } h3 { font-size:15px; margin:22px 0 8px }
+  .muted { color:var(--muted) } .small { font-size:12.5px; overflow-wrap:anywhere }
+  .nav a { display:block; padding:6px 10px; border-radius:6px; color:var(--text); text-decoration:none; margin:2px 0 }
+  .nav a:hover { background:var(--bg) } .nav a.on { background:var(--bg); font-weight:600 }
+  .nav .label { font-size:12px; color:var(--muted); margin:16px 0 4px 2px }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px }
-  .row { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center }
-  .name { font-weight:600; font-size:15px; min-width:120px }
-  .badge { font-size:12px; font-weight:600; padding:2px 8px; border-radius:999px; border:1px solid currentColor }
+  .row { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center }
+  .name { font-weight:600; font-size:15px }
+  .badge { font-size:12px; font-weight:600; padding:1px 8px; border-radius:999px; border:1px solid currentColor; white-space:nowrap }
   .RUNNING{color:var(--ok)} .DEPLOYING{color:var(--run)} .ROLLED_BACK{color:var(--warn)}
-  .FAILED{color:var(--bad)} .PENDING{color:var(--muted)}
+  .FAILED{color:var(--bad)} .PENDING{color:var(--muted)} .pin { color:var(--accent) }
   code { font-family:ui-monospace, monospace; font-size:12.5px }
-  .actions { margin-left:auto; display:flex; gap:6px }
+  .actions { margin-left:auto; display:flex; flex-wrap:wrap; gap:6px }
   button { font:inherit; padding:4px 10px; border-radius:6px; border:1px solid var(--line);
            background:var(--bg); color:var(--text); cursor:pointer }
-  button:hover { border-color:var(--muted) }
+  button:hover { border-color:var(--muted) } button.primary { background:var(--accent); border-color:var(--accent); color:#fff }
+  button.danger { color:var(--bad) } button:disabled { opacity:.5; cursor:default }
   pre { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:10px; margin:10px 0 0;
-        max-height:320px; overflow:auto; font-size:12px; white-space:pre-wrap; word-break:break-all }
-  input { font:inherit; padding:4px 8px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--text) }
+        max-height:360px; overflow:auto; font-size:12px; white-space:pre-wrap; word-break:break-all }
+  pre.diff span { display:block } .d-add { background:var(--add) } .d-del { background:var(--del) } .d-hunk { color:var(--muted) }
+  input, textarea, select { font:inherit; padding:5px 8px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--text) }
+  textarea { width:100%; min-height:360px; font:12.5px/1.5 ui-monospace, monospace; tab-size:2 }
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin:16px 0 14px; overflow-x:auto }
+  .tabs a { padding:8px 12px; color:var(--muted); text-decoration:none; border-bottom:2px solid transparent; white-space:nowrap }
+  .tabs a.on { color:var(--text); border-color:var(--accent); font-weight:600 }
+  table { width:100%; border-collapse:collapse; font-size:13px } .table { overflow-x:auto }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top }
+  th { font-weight:600; color:var(--muted); font-size:12px }
+  tr.sel td { background:var(--bg) } tr.click { cursor:pointer }
+  .error { color:var(--bad); white-space:pre-wrap; margin-top:8px }
+  .ok { color:var(--ok); margin-top:8px }
+  form.inline { display:flex; flex-direction:column; gap:6px }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px } @media (max-width:900px) { .grid2 { grid-template-columns:1fr } }
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <div>
-      <h1>Local Hub</h1>
-      <div class="muted">git 변경을 감지해 Docker Compose 서비스를 자동으로 다시 띄웁니다. 5초마다 새로고침.</div>
-    </div>
-    <label class="muted">API 토큰 <input id="token" type="password" placeholder="설정한 경우만"></label>
-  </header>
-
-  <section id="services"><div class="muted">불러오는 중…</div></section>
-
-  <h2>컨테이너 상태</h2>
-  <pre id="ps" class="muted">불러오는 중…</pre>
-</main>
+<div class="layout">
+  <aside>
+    <h1>Local Hub</h1>
+    <div class="muted small">git 변경을 감지해 프로젝트 서비스를 자동으로 다시 띄워요.</div>
+    <nav class="nav" id="nav"></nav>
+    <div class="nav"><div class="label">새 프로젝트</div></div>
+    <form class="inline" id="create">
+      <input name="id" placeholder="id (예: shop)" pattern="[a-z0-9][a-z0-9-]{0,39}" required>
+      <input name="name" placeholder="표시 이름 (선택)">
+      <button class="primary">추가</button>
+      <div class="error small" id="create-error"></div>
+    </form>
+    <div class="nav"><div class="label">API 토큰</div></div>
+    <input id="token" type="password" placeholder="설정한 경우만" style="width:100%">
+  </aside>
+  <main id="main"><div class="muted">불러오는 중…</div></main>
+</div>
 
 <script>
-const open = new Set();
+const STATUS = { RUNNING:'실행 중', DEPLOYING:'배포 중', ROLLED_BACK:'되돌림', FAILED:'실패', PENDING:'대기' };
+const TABS = [['services','서비스'], ['settings','설정'], ['history','배포 이력'], ['versions','설정 버전']];
+const ui = { openOutput:new Set(), openVersions:new Set(), logs:{}, file:'project.yml', selectedVersion:null };
+let projects = [];
+
 const tokenInput = document.getElementById('token');
 try { tokenInput.value = localStorage.getItem('hubToken') || ''; } catch (e) {}
 tokenInput.addEventListener('change', () => { try { localStorage.setItem('hubToken', tokenInput.value); } catch (e) {} });
 
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const time = t => t ? new Date(t).toLocaleString() : '-';
-const commit = c => c ? `<code>${esc(c.sha.slice(0, 7))}</code> ${esc(c.subject)} <span class="muted">· ${esc(c.author)}</span>` : '<span class="muted">-</span>';
+const short = sha => sha ? sha.slice(0, 7) : '';
+const commit = c => c ? `<code>${esc(short(c.sha))}</code> ${esc(c.subject)} <span class="muted">· ${esc(c.author)}</span>` : '<span class="muted">-</span>';
+const enc = encodeURIComponent;
+const $ = id => document.getElementById(id);
 
-async function deploy(name, force) {
-  const res = await fetch(`api/services/${encodeURIComponent(name)}/deploy?force=${force}`,
-    { method: 'POST', headers: { 'X-Hub-Token': tokenInput.value } });
-  if (!res.ok) alert((await res.json().catch(() => ({}))).error || `요청 실패 (${res.status})`);
+function route() {
+  const [, id, tab] = location.hash.match(/^#\/p\/([^/]+)\/?(\w+)?/) || [];
+  if (location.hash === '#/infra') return { infra:true };
+  return { id: id && decodeURIComponent(id), tab: tab || 'services' };
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch('api/' + path, {
+    ...opts,
+    headers: { 'Content-Type':'application/json', 'X-Hub-Token': tokenInput.value, ...(opts.headers || {}) },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `요청 실패 (${res.status})`);
+  return body;
+}
+
+function diffHtml(text) {
+  return esc(text || '(차이 없음)').split('\n').map(l => {
+    const cls = l.startsWith('+') && !l.startsWith('+++') ? 'd-add'
+      : l.startsWith('-') && !l.startsWith('---') ? 'd-del' : l.startsWith('@@') ? 'd-hunk' : '';
+    return `<span class="${cls}">${l || ' '}</span>`;
+  }).join('');
+}
+
+// ---------- 사이드바 ----------
+
+function renderNav() {
+  const r = route();
+  $('nav').innerHTML = `<div class="label">프로젝트</div>`
+    + (projects.length ? projects.map(p => {
+        const bad = p.services.some(s => ['FAILED','ROLLED_BACK'].includes(s.state?.status));
+        return `<a href="#/p/${enc(p.id)}/services" class="${r.id === p.id ? 'on' : ''}">${esc(p.name)}
+          ${bad ? '<span class="badge FAILED">문제</span>' : ''}<div class="muted small">${esc(p.id)} · 서비스 ${p.services.length}개</div></a>`;
+      }).join('') : '<div class="muted small" style="padding:4px 10px">아직 없어요. 아래에서 추가하세요.</div>')
+    + `<div class="label">공통</div><a href="#/infra" class="${r.infra ? 'on' : ''}">공통 서비스 (DB 등)</a>`;
+}
+
+$('create').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  $('create-error').textContent = '';
+  try {
+    const p = await api('projects', { method:'POST', body: JSON.stringify({ id: f.get('id'), name: f.get('name') }) });
+    e.target.reset();
+    ui.file = 'project.yml';
+    location.hash = `#/p/${enc(p.id)}/settings`;
+    await loadProjects();
+  } catch (err) { $('create-error').textContent = err.message; }
+});
+
+// ---------- 서비스 탭 ----------
+
+function serviceCard(p, s) {
+  const st = s.state || {};
+  const key = p.id + '/' + s.name;
+  return `<div class="card">
+    <div class="row">
+      <span class="name">${esc(s.name)}</span>
+      <span class="badge ${st.status}">${STATUS[st.status] || st.status}</span>
+      ${s.pin ? `<span class="badge pin" title="브랜치 최신 대신 이 버전으로 고정돼 있어요">📌 ${esc(s.pin)} 고정</span>`
+              : `<span class="muted">${esc(s.branch)} 최신 따라감</span>`}
+      <div class="actions">
+        <button onclick="deploy('${esc(p.id)}','${esc(s.name)}',false)">지금 확인</button>
+        <button onclick="deploy('${esc(p.id)}','${esc(s.name)}',true)">다시 배포</button>
+        <button onclick="toggleVersions('${esc(key)}')">${ui.openVersions.has(key) ? '버전 닫기' : '버전 고정'}</button>
+        <button onclick="showLogs('${esc(p.id)}','${esc(s.name)}')">컨테이너 로그</button>
+        <button onclick="toggleOutput('${esc(key)}')">${ui.openOutput.has(key) ? '출력 닫기' : '배포 출력'}</button>
+      </div>
+    </div>
+    <div class="muted small">${esc(s.repo)}</div>
+    <div style="margin-top:6px">배포된 커밋: ${commit(st.deployedCommit)}</div>
+    ${st.failedCommit ? `<div style="color:var(--bad)">실패한 커밋: ${commit(st.failedCommit)}</div>` : ''}
+    <div class="muted small">${esc(st.message)} · 마지막 확인 ${time(st.lastCheckedAt)} · 마지막 배포 ${time(st.lastDeployedAt)}</div>
+    ${ui.openVersions.has(key) ? `<div id="ver-${esc(key)}" class="card" style="margin:10px 0 0">불러오는 중…</div>` : ''}
+    ${ui.openOutput.has(key) ? `<pre>${esc(st.lastOutput || '(출력 없음)')}</pre>` : ''}
+    ${ui.logs[key] != null ? `<pre>${esc(ui.logs[key])}</pre>` : ''}
+  </div>`;
+}
+
+async function renderServices(p, el) {
+  el.innerHTML = (p.services.length ? p.services.map(s => serviceCard(p, s)).join('')
+      : `<div class="card muted">서비스가 없어요. <a href="#/p/${enc(p.id)}/settings">설정</a> 탭의 project.yml 에 저장소를, compose.yml 에 서비스를 추가하세요.</div>`)
+    + `<h3>컨테이너 상태</h3><pre id="ps" class="muted">불러오는 중…</pre>`;
+  for (const key of ui.openVersions) if (key.startsWith(p.id + '/')) loadVersions(p.id, key.slice(p.id.length + 1));
+  api(`projects/${enc(p.id)}/ps`).then(r => { if ($('ps')) $('ps').textContent = r.output || '(실행 중인 컨테이너 없음)'; })
+    .catch(e => { if ($('ps')) $('ps').textContent = e.message; });
+}
+
+async function deploy(id, name, force) {
+  try { await api(`projects/${enc(id)}/services/${enc(name)}/deploy?force=${force}`, { method:'POST' }); }
+  catch (e) { alert(e.message); }
+  setTimeout(refresh, 500);
+}
+
+async function showLogs(id, name) {
+  const key = id + '/' + name;
+  ui.logs[key] = '불러오는 중…'; render();
+  try { ui.logs[key] = (await api(`projects/${enc(id)}/services/${enc(name)}/logs?tail=200`)).output || '(로그 없음)'; }
+  catch (e) { ui.logs[key] = e.message; }
+  render();
+}
+
+function toggleOutput(key) { ui.openOutput.has(key) ? ui.openOutput.delete(key) : ui.openOutput.add(key); render(); }
+function toggleVersions(key) { ui.openVersions.has(key) ? ui.openVersions.delete(key) : ui.openVersions.add(key); render(); }
+
+async function loadVersions(id, name) {
+  const el = () => $(`ver-${id}/${name}`);
+  try {
+    const v = await api(`projects/${enc(id)}/services/${enc(name)}/versions`);
+    if (!el()) return;
+    const pinBtn = (ref, label = '고정') => `<button onclick="pin('${esc(id)}','${esc(name)}','${esc(ref)}')">${label}</button>`;
+    const row = (ref, text, extra = '') => `<tr><td><code>${esc(ref)}</code></td><td>${text}</td><td class="muted">${extra}</td><td>${pinBtn(ref)}</td></tr>`;
+    el().innerHTML = `
+      <div class="row">
+        <b>버전 고정</b>
+        <span class="muted small">${v.pin ? `지금 <code>${esc(v.pin)}</code> 로 고정됨` : `지금은 ${esc(v.branch)} 브랜치 최신을 따라가요`}</span>
+        <div class="actions">
+          <input id="ref-${esc(id)}-${esc(name)}" placeholder="커밋 해시나 태그" size="16">
+          <button onclick="pin('${esc(id)}','${esc(name)}', $('ref-${esc(id)}-${esc(name)}').value)">입력한 버전으로 고정</button>
+          ${v.pin ? `<button onclick="unpin('${esc(id)}','${esc(name)}')">고정 풀기</button>` : ''}
+        </div>
+      </div>
+      <div class="muted small" style="margin:4px 0 8px">고정하면 브랜치에 새 커밋이 올라와도 그 버전을 유지해요. 고정·해제도 설정 버전에 기록돼요.</div>
+      <div class="table"><table>
+        <tr><th>버전</th><th>내용</th><th>작성자 · 시각</th><th></th></tr>
+        ${v.deployed.length ? `<tr><th colspan="4">예전에 배포에 성공한 버전</th></tr>` : ''}
+        ${v.deployed.map(d => row(short(d.sha), esc(d.subject), `${esc(d.author)} · ${time(d.time)}`)).join('')}
+        ${v.tags.length ? `<tr><th colspan="4">태그</th></tr>` : ''}
+        ${v.tags.slice(0, 15).map(t => row(t.name, `<code>${esc(short(t.sha))}</code>`)).join('')}
+        ${v.commits.length ? `<tr><th colspan="4">${esc(v.branch)} 최근 커밋</th></tr>` : ''}
+        ${v.commits.map(c => row(short(c.sha), esc(c.subject), `${esc(c.author)} · ${time(c.date)}`)).join('')}
+        ${!v.commits.length ? `<tr><td colspan="4" class="muted">아직 저장소를 받지 않았어요. 첫 배포가 끝나면 커밋 목록이 보여요.</td></tr>` : ''}
+      </table></div>`;
+  } catch (e) { if (el()) el().innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+}
+
+async function pin(id, name, ref) {
+  if (!ref || !ref.trim()) return alert('커밋 해시나 태그를 적어 주세요');
+  try { await api(`projects/${enc(id)}/services/${enc(name)}/pin`, { method:'PUT', body: JSON.stringify({ ref: ref.trim() }) }); }
+  catch (e) { return alert(e.message); }
   refresh();
 }
 
-async function showLogs(name) {
-  const el = document.getElementById(`logs-${name}`);
-  el.textContent = '불러오는 중…';
-  el.hidden = false;
-  const res = await fetch(`api/services/${encodeURIComponent(name)}/logs?tail=200`);
-  el.textContent = res.ok ? (await res.json()).output || '(로그 없음)' : `불러오기 실패 (${res.status})`;
+async function unpin(id, name) {
+  try { await api(`projects/${enc(id)}/services/${enc(name)}/pin`, { method:'DELETE' }); } catch (e) { return alert(e.message); }
+  refresh();
 }
 
-function toggle(name) { open.has(name) ? open.delete(name) : open.add(name); refresh(); }
+// ---------- 설정 탭 ----------
 
-function render(states) {
-  if (!states.length) return '<div class="card muted">hub.yml 에 등록된 서비스가 없습니다.</div>';
-  return states.map(s => `
-    <div class="card">
-      <div class="row">
-        <span class="name">${esc(s.name)}</span>
-        <span class="badge ${s.status}">${s.status}</span>
-        <span class="muted">${esc(s.branch)}</span>
-        <div class="actions">
-          <button onclick="deploy('${esc(s.name)}', false)">지금 확인</button>
-          <button onclick="deploy('${esc(s.name)}', true)">다시 배포</button>
-          <button onclick="showLogs('${esc(s.name)}')">컨테이너 로그</button>
-          <button onclick="toggle('${esc(s.name)}')">${open.has(s.name) ? '출력 닫기' : '배포 출력'}</button>
-        </div>
-      </div>
-      <div style="margin-top:6px">배포된 커밋: ${commit(s.deployedCommit)}</div>
-      ${s.failedCommit ? `<div style="color:var(--bad)">실패한 커밋: ${commit(s.failedCommit)}</div>` : ''}
-      <div class="muted">${esc(s.message)} · 마지막 확인 ${time(s.lastCheckedAt)} · 마지막 배포 ${time(s.lastDeployedAt)}</div>
-      ${open.has(s.name) ? `<pre>${esc(s.lastOutput || '(출력 없음)')}</pre>` : ''}
-      <pre id="logs-${esc(s.name)}" hidden></pre>
-    </div>`).join('');
+async function renderSettings(p, el) {
+  el.innerHTML = `
+    <div class="row" style="margin-bottom:8px">
+      <select id="file" onchange="ui.file=this.value; render()">
+        <option value="project.yml" ${ui.file === 'project.yml' ? 'selected' : ''}>project.yml (이름, 서비스 저장소)</option>
+        <option value="compose.yml" ${ui.file === 'compose.yml' ? 'selected' : ''}>compose.yml (Docker Compose 정의)</option>
+      </select>
+      <span class="muted small">저장하면 새 버전으로 기록되고, 바뀐 서비스를 다시 배포해요.</span>
+    </div>
+    <textarea id="editor" spellcheck="false">불러오는 중…</textarea>
+    <div class="row" style="margin-top:8px">
+      <input id="message" placeholder="무엇을 바꿨나요? (버전 기록에 남아요)" style="flex:1; min-width:220px">
+      <button class="primary" id="save">저장</button>
+    </div>
+    <div id="save-result"></div>
+    <h3>프로젝트 삭제</h3>
+    <div class="card row">
+      <span class="muted">설정·버전 기록·작업 공간을 지우고 이 프로젝트의 컨테이너를 내려요. 공통 서비스와 볼륨은 남아요.</span>
+      <div class="actions"><button class="danger" onclick="removeProject('${esc(p.id)}')">삭제</button></div>
+    </div>`;
+  try { $('editor').value = (await api(`projects/${enc(p.id)}/files/${ui.file}`)).content; }
+  catch (e) { $('editor').value = ''; $('save-result').innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+  $('editor').addEventListener('keydown', e => {
+    if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '  '); }
+  });
+  $('save').onclick = async () => {
+    $('save').disabled = true;
+    try {
+      const r = await api(`projects/${enc(p.id)}/files/${ui.file}`, { method:'PUT',
+        body: JSON.stringify({ content: $('editor').value, message: $('message').value }) });
+      $('save-result').innerHTML = r.changed ? '<div class="ok">저장했어요. 새 버전이 기록됐고 배포를 시작했어요.</div>'
+        : '<div class="muted" style="margin-top:8px">바뀐 내용이 없어요.</div>';
+      $('message').value = '';
+      await loadProjects(false);
+    } catch (e) { $('save-result').innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+    $('save').disabled = false;
+  };
 }
 
-async function refresh() {
+async function removeProject(id) {
+  if (!confirm(`${id} 프로젝트를 삭제할까요? 설정 버전 기록도 함께 지워져요.`)) return;
+  try { await api(`projects/${enc(id)}`, { method:'DELETE' }); } catch (e) { return alert(e.message); }
+  location.hash = '';
+  loadProjects();
+}
+
+// ---------- 배포 이력 탭 ----------
+
+async function renderHistory(p, el) {
+  el.innerHTML = '<div class="muted">불러오는 중…</div>';
+  const rows = await api(`projects/${enc(p.id)}/history?limit=200`);
+  el.innerHTML = rows.length ? `<div class="table"><table>
+      <tr><th>시각</th><th>서비스</th><th>결과</th><th>커밋</th><th>메시지</th></tr>
+      ${rows.map(r => `<tr><td class="muted">${time(r.time)}</td><td>${esc(r.service)}</td>
+        <td><span class="badge ${r.status}">${STATUS[r.status] || r.status}</span></td>
+        <td>${r.sha ? `<code>${esc(short(r.sha))}</code> ${esc(r.subject)} <span class="muted">· ${esc(r.author)}</span>` : '-'}</td>
+        <td class="muted">${esc(r.message)}</td></tr>`).join('')}
+    </table></div>` : '<div class="card muted">아직 배포 기록이 없어요.</div>';
+}
+
+// ---------- 설정 버전 탭 ----------
+
+async function renderVersions(p, el) {
+  el.innerHTML = '<div class="muted">불러오는 중…</div>';
+  const versions = await api(`projects/${enc(p.id)}/config-versions?limit=100`);
+  el.innerHTML = `<div class="muted small" style="margin-bottom:8px">project.yml · compose.yml · 버전 고정이 바뀔 때마다 기록돼요. 행을 누르면 바뀐 내용을 볼 수 있어요.</div>
+    <div class="table"><table>
+      <tr><th>버전</th><th>내용</th><th>시각</th></tr>
+      ${versions.map((v, i) => `<tr class="click ${ui.selectedVersion === v.sha ? 'sel' : ''}" onclick="selectVersion('${esc(v.sha)}')">
+        <td><code>${esc(short(v.sha))}</code>${i === 0 ? ' <span class="badge RUNNING">현재</span>' : ''}</td>
+        <td>${esc(v.message)}</td><td class="muted">${time(v.date)}</td></tr>`).join('')}
+    </table></div>
+    <div id="version-detail"></div>`;
+  if (ui.selectedVersion && versions.some(v => v.sha === ui.selectedVersion)) showVersion(p.id, ui.selectedVersion, versions[0]?.sha);
+}
+
+function selectVersion(sha) { ui.selectedVersion = sha; render(); }
+
+async function showVersion(id, sha, current) {
+  const el = $('version-detail');
+  el.innerHTML = '<div class="muted" style="margin-top:12px">불러오는 중…</div>';
   try {
-    const states = await (await fetch('api/services')).json();
-    const keep = {};
-    document.querySelectorAll('pre[id^="logs-"]:not([hidden])').forEach(p => keep[p.id] = p.textContent);
-    document.getElementById('services').innerHTML = render(states);
-    for (const [id, text] of Object.entries(keep)) {
-      const p = document.getElementById(id);
-      if (p) { p.textContent = text; p.hidden = false; }
-    }
-    const ps = await (await fetch('api/compose/ps')).json();
-    document.getElementById('ps').textContent = ps.output || '(실행 중인 컨테이너 없음)';
-  } catch (e) {
-    document.getElementById('services').innerHTML = '<div class="card" style="color:var(--bad)">서버에 연결할 수 없습니다.</div>';
-  }
+    const d = await api(`projects/${enc(id)}/config-versions/${sha}`);
+    el.innerHTML = `<h3>버전 <code>${esc(short(sha))}</code></h3>
+      ${sha !== current && d.diffWithCurrent.trim() ? `<div class="row"><span class="muted">이 버전의 설정으로 돌아가면 새 버전으로 기록되고 서비스를 다시 배포해요. 이력은 지워지지 않아요.</span>
+        <div class="actions"><button class="primary" onclick="restore('${esc(id)}','${esc(sha)}')">이 버전으로 되돌리기</button></div></div>` : ''}
+      <div class="grid2">
+        <div><div class="muted small" style="margin-top:10px">이 버전에서 바뀐 내용</div><pre class="diff">${diffHtml(d.changes)}</pre></div>
+        <div><div class="muted small" style="margin-top:10px">이 버전 → 현재 설정</div><pre class="diff">${diffHtml(d.diffWithCurrent)}</pre></div>
+      </div>`;
+  } catch (e) { el.innerHTML = `<div class="error">${esc(e.message)}</div>`; }
 }
-refresh();
-setInterval(refresh, 5000);
+
+async function restore(id, sha) {
+  if (!confirm(`설정을 ${short(sha)} 버전으로 되돌릴까요?`)) return;
+  try {
+    const r = await api(`projects/${enc(id)}/config-versions/${sha}/restore`, { method:'POST' });
+    if (!r.changed) alert('지금 설정과 같아서 바뀐 것이 없어요.');
+  } catch (e) { return alert(e.message); }
+  ui.selectedVersion = null;
+  await loadProjects();
+}
+
+// ---------- 공통 서비스 ----------
+
+async function renderInfra(el) {
+  el.innerHTML = `<h2>공통 서비스</h2>
+    <div class="muted" style="margin-top:4px">모든 프로젝트가 함께 쓰는 DB 등이에요. 프로젝트 compose.yml 에서 서비스 이름(예: postgres:5432)으로 접속해요.
+    어떤 걸 띄울지는 hub.yml 의 infra-profiles 에서 정해요.</div>
+    <pre id="infra">불러오는 중…</pre>`;
+  try { $('infra').textContent = (await api('infra/ps')).output || '(실행 중인 공통 서비스 없음)'; }
+  catch (e) { $('infra').textContent = e.message; }
+}
+
+// ---------- 화면 ----------
+
+function render() {
+  renderNav();
+  const r = route();
+  const main = $('main');
+  if (r.infra) return renderInfra(main);
+  const p = projects.find(x => x.id === r.id);
+  if (!p) {
+    main.innerHTML = projects.length
+      ? `<h2>프로젝트를 고르세요</h2><div class="muted" style="margin-top:4px">왼쪽 목록에서 프로젝트를 고르거나 새로 추가하세요.</div>`
+      : `<h2>첫 프로젝트를 추가하세요</h2><div class="muted" style="margin-top:4px">왼쪽 아래에 id 를 적고 추가하면 설정 화면이 열려요.
+         저장소 주소와 compose 정의를 적고 저장하면 Local Hub 가 받아서 띄워요.</div>`;
+    return;
+  }
+  main.innerHTML = `
+    <div class="row"><h2>${esc(p.name)}</h2><span class="muted">${esc(p.id)}</span></div>
+    ${p.description ? `<div class="muted">${esc(p.description)}</div>` : ''}
+    <nav class="tabs">${TABS.map(([k, label]) => `<a href="#/p/${enc(p.id)}/${k}" class="${r.tab === k ? 'on' : ''}">${label}</a>`).join('')}</nav>
+    <section id="tab"></section>`;
+  const el = $('tab');
+  const fn = { services:renderServices, settings:renderSettings, history:renderHistory, versions:renderVersions }[r.tab] || renderServices;
+  Promise.resolve(fn(p, el)).catch(e => { el.innerHTML = `<div class="error">${esc(e.message)}</div>`; });
+}
+
+async function loadProjects(rerender = true) {
+  try {
+    projects = await api('projects');
+  } catch (e) {
+    $('main').innerHTML = `<div class="card error">서버에 연결할 수 없어요: ${esc(e.message)}</div>`;
+    return;
+  }
+  if (rerender) render(); else renderNav();
+}
+
+// 서비스 탭만 자동 새로고침한다 (편집 중인 설정이 지워지지 않도록)
+async function refresh() {
+  const r = route();
+  const typing = $('main').contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
+  await loadProjects(!r.infra && r.tab === 'services' && !!r.id && !typing);
+}
+
+window.addEventListener('hashchange', () => { ui.selectedVersion = null; render(); });
+loadProjects();
+setInterval(() => { if (!document.hidden) refresh(); }, 5000);
 </script>
 </body>
 </html>

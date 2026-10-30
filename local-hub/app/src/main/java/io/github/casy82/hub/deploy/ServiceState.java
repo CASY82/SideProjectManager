@@ -17,7 +17,7 @@ public record ServiceState(
         String message,
         String lastOutput) {
 
-    static ServiceState initial(String name, String repo, String branch) {
+    public static ServiceState initial(String name, String repo, String branch) {
         return new ServiceState(name, repo, branch, DeployStatus.PENDING, null, null, null, null, "", "");
     }
 

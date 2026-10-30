@@ -7,7 +7,7 @@ cd /d "%~dp0"
 
 if not exist hub.yml (
   copy hub.example.yml hub.yml >nul
-  echo hub.yml 을 만들었습니다. services 에 감시할 저장소를 적어 주세요.
+  echo hub.yml 을 만들었습니다. 필요하면 공통 서비스(infra-profiles)를 고친 뒤 대시보드에서 프로젝트를 추가하세요.
 )
 
 set JAR=app\target\local-hub.jar
