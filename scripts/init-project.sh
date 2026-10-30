@@ -69,7 +69,7 @@ copy_tree() {
   while IFS= read -r -d '' file; do
     copy_file "${file#"$SRC"/}"
   done < <(find "$SRC/$dir" \
-    \( -name target -o -name workspace -o -name node_modules \) -prune -o \
+    \( -name target -o -name workspace -o -name data -o -name node_modules \) -prune -o \
     -type f ! -name hub.yml ! -name .env -print0)
 }
 
@@ -105,7 +105,7 @@ if $WANT_HUB; then
   copy_tree local-hub
   ensure_gitignore "local-hub/hub.yml"
   ensure_gitignore "local-hub/.env"
-  ensure_gitignore "local-hub/workspace/"
+  ensure_gitignore "local-hub/data/"
   ensure_gitignore "target/"
 fi
 
@@ -126,5 +126,5 @@ if $WANT_TASKS; then
   echo "  - (선택) Settings → Secrets 에 DISCORD_WEBHOOK_URL 또는 SLACK_WEBHOOK_URL 추가"
 fi
 if $WANT_HUB; then
-  echo "  - local-hub/hub.sh 실행 후 hub.yml 에 감시할 저장소 등록"
+  echo "  - local-hub/hub.sh 실행 후 대시보드(:8090)에서 프로젝트 추가"
 fi

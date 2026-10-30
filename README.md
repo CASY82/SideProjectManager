@@ -4,7 +4,7 @@
 
 | 도구 | 하는 일 | 문서 |
 | --- | --- | --- |
-| Local Hub | 클라우드 없이 공용 PC 한 대에 공통 서비스(DB 등)와 팀원 서비스를 띄우고, git 에 새 커밋이 올라오면 자동으로 다시 빌드·재기동 | [local-hub/README.md](local-hub/README.md) |
+| Local Hub | 클라우드 없이 공용 PC 한 대에 공통 서비스(DB 등)와 여러 프로젝트의 서비스를 띄우고, git 에 새 커밋이 올라오면 자동으로 다시 빌드·재기동. 프로젝트 설정 버전 기록·되돌리기, 배포 이력, 버전 고정 | [local-hub/README.md](local-hub/README.md) |
 | 일정·할 일 자동 관리 | GitHub Issues + Actions 로 기획서 양식과 기획별 진행률, 상태·우선순위 라벨, 매일 마감 알림, 주간 요약, Discord/Slack 알림 | [docs/task-automation.md](docs/task-automation.md) |
 | 프로젝트 템플릿 | 새 프로젝트의 뼈대: README·기여 규칙·PR 양식·기술 결정 기록, 언어 자동 감지 CI, Dependabot, 공통 `.gitignore`·`.editorconfig` | [template/](template/) |
 
@@ -38,7 +38,7 @@ my-project/
 ```
 
 - 이미 있는 파일은 건너뛰고, `--force` 를 주면 덮어씁니다.
-- 실행 중에 생기는 파일(`hub.yml`, `.env`, `workspace/`, 빌드 결과)은 복사하지 않고 `.gitignore` 에 추가합니다.
+- 실행 중에 생기는 파일(`hub.yml`, `.env`, `data/`, 빌드 결과)은 복사하지 않고 `.gitignore` 에 추가합니다.
 - 대상 폴더가 git 저장소가 아니면 `git init` 까지 해 줍니다.
 - Windows 에서는 Git Bash 로 실행하면 됩니다.
 
