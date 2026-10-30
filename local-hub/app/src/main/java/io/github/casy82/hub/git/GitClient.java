@@ -26,7 +26,7 @@ public class GitClient {
     }
 
     public void cloneRepo(String repo, String branch, Path dir) {
-        runner.run(dir.getParent(), List.of("git", "clone", "--branch", branch, "--single-branch", repo, dir.toString()))
+        runner.run(dir.getParent(), List.of("git", "clone", "--branch", branch, "--single-branch", "--", repo, dir.toString()))
                 .orThrow("git clone " + repo);
     }
 

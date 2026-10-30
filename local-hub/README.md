@@ -184,14 +184,18 @@ export HUB_GITHUB_TOKEN=github_pat_...   # Windows: set HUB_GITHUB_TOKEN=...
 | POST | `/api/projects/{id}/config-versions/{sha}/restore` | 그 버전으로 되돌리기 |
 | GET | `/api/infra/ps` | 공통 서비스 컨테이너 목록 |
 
-`hub.api-token` 을 설정하면 POST·PUT·DELETE 요청에 `X-Hub-Token` 헤더가 필요합니다 (대시보드 왼쪽 아래에 입력).
-같은 네트워크에 모르는 사람이 있다면 꼭 설정하세요.
+변경 요청(POST·PUT·DELETE)은 compose.yml 로 아무 컨테이너나 띄울 수 있어 Hub PC 를 다루는 것과 같으므로 이렇게 보호합니다.
+
+- `hub.api-token` 이 비어 있으면 **Hub PC 자신(localhost)에서만** 변경할 수 있습니다. 다른 PC 에서 보내면 403 입니다.
+- 공용 PC 로 여러 사람이 쓰려면 `hub.api-token` 에 긴 임의 문자열을 넣고, `X-Hub-Token` 헤더로 보냅니다 (대시보드는 왼쪽 아래 **API 토큰** 칸).
+- 다른 사이트가 브라우저를 통해 몰래 보내는 요청(Origin 이 다른 요청)과, 모르는 호스트 이름으로 들어온 요청은 막습니다.
+  `hub-pc.local` 처럼 이름으로 접속한다면 `hub.allowed-hosts` 에 적어 주세요. localhost 와 IP 주소는 그대로 됩니다.
 
 ### 폴링 대신 즉시 배포하고 싶다면
 
 공용 PC 는 보통 외부에서 접속할 수 없어서 GitHub 웹훅을 직접 받을 수 없습니다. 그래서 기본은 폴링입니다.
 더 빠르게 반영하고 싶으면 `poll-interval` 을 `15s` 정도로 줄이거나,
-같은 네트워크에서 `curl -X POST http://<공용PC>:8090/api/projects/shop/services/api/deploy` 를 호출하면 됩니다.
+같은 네트워크에서 `curl -X POST -H "X-Hub-Token: <토큰>" http://<공용PC>:8090/api/projects/shop/services/api/deploy` 를 호출하면 됩니다.
 
 ## 비공개 저장소
 

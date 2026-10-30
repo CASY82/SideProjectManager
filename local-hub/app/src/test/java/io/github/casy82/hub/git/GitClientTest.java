@@ -26,7 +26,7 @@ class GitClientTest {
     void 가벼운_태그와_주석_태그_모두_커밋으로_바꾼다() throws Exception {
         CommandRunner runner = new ProcessCommandRunner(new HubProperties(dir.toString(), "data", List.of(), "t", "t",
                 List.of(), Duration.ofSeconds(1), Duration.ofSeconds(30), "",
-                new HubProperties.Issues(false, "", "", List.of(), true)));
+                new HubProperties.Issues(false, "", "", List.of(), true), List.of()));
         GitClient git = new GitClient(runner);
         run(runner, "git", "init", "-q", "-b", "main");
         Files.writeString(dir.resolve("a"), "1");

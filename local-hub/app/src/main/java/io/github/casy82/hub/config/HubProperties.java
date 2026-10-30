@@ -21,6 +21,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param commandTimeout git/docker 명령 하나의 최대 실행 시간
  * @param apiToken       비어 있지 않으면 변경 API(POST/PUT/DELETE) 호출 시 X-Hub-Token 헤더로 요구
  * @param issues         배포 실패를 GitHub 이슈로 올리는 설정
+ * @param allowedHosts   localhost·IP 주소 말고 대시보드를 열 때 쓰는 호스트 이름 (예: hub-pc.local)
  */
 @ConfigurationProperties(prefix = "hub")
 public record HubProperties(
@@ -33,7 +34,8 @@ public record HubProperties(
         @DefaultValue("60s") Duration pollInterval,
         @DefaultValue("15m") Duration commandTimeout,
         @DefaultValue("") String apiToken,
-        @DefaultValue Issues issues) {
+        @DefaultValue Issues issues,
+        @DefaultValue List<String> allowedHosts) {
 
     /**
      * @param enabled       true 면 배포 실패·롤백 때 이슈를 만들고, 다음 배포가 성공하면 닫는다

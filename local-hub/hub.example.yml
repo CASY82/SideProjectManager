@@ -19,8 +19,12 @@ hub:
   poll-interval: 60s
   # git/docker 명령 하나가 이 시간을 넘기면 실패로 본다
   command-timeout: 15m
-  # 값을 넣으면 변경 요청(배포, 설정 저장, 프로젝트 추가·삭제)에 X-Hub-Token 헤더가 필요하다. 같은 네트워크에 모르는 사람이 있으면 설정할 것
+  # 변경 요청(배포, 설정 저장, 프로젝트 추가·삭제)을 보호하는 토큰.
+  # 비워 두면 Hub PC 자신(localhost)에서만 변경할 수 있다. 다른 PC 에서도 쓰려면 긴 임의 문자열을 넣고
+  # 대시보드 왼쪽 아래 "API 토큰" 칸이나 X-Hub-Token 헤더로 보낸다. 조회(GET)는 토큰 없이 된다
   api-token: ""
+  # localhost·IP 주소 말고 호스트 이름으로 대시보드를 열 때만 적는다 (예: hub-pc.local). 모르는 이름은 막는다
+  allowed-hosts: []
 
   # 배포가 실패하거나 롤백되면 GitHub 이슈를 자동으로 만들고, 다음 배포가 성공하면 닫는다
   issues:

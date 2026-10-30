@@ -37,7 +37,7 @@ class ProjectStoreTest {
     void setUp() {
         HubProperties props = new HubProperties(base.toString(), "data", List.of("docker-compose.yml"), "test", "test",
                 List.of(), Duration.ofSeconds(60), Duration.ofMinutes(1), "",
-                new HubProperties.Issues(false, "", "", List.of("local-hub"), true));
+                new HubProperties.Issues(false, "", "", List.of("local-hub"), true), List.of());
         CommandRunner real = new ProcessCommandRunner(props);
         CommandRunner runner = (dir, cmd) -> cmd.getFirst().equals("docker") ? new CommandResult(0, "") : real.run(dir, cmd);
         store = new ProjectStore(props, runner, new ComposeClient(runner, props));
@@ -116,6 +116,17 @@ class ProjectStoreTest {
         store.saveFile("shop", "project.yml", WITH_API, "api 추가");
         assertThatThrownBy(() -> store.setPin("shop", "api", "--output=x", "x"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 명령_옵션으로_해석될_수_있는_서비스_설정은_거절한다() {
+        store.create("shop", null);
+        for (String svc : List.of("repo: --upload-pack=touch /tmp/x", "repo: https://x/a.git\n    branch: --foo",
+                "repo: https://x/a.git\n    compose-service: --privileged", "repo: https://x/a.git\n    issue-repo: a/b/c")) {
+            String yaml = "services:\n  - name: api\n    " + svc + "\n";
+            assertThatThrownBy(() -> store.saveFile("shop", "project.yml", yaml, "x"))
+                    .as(svc).isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     @Test

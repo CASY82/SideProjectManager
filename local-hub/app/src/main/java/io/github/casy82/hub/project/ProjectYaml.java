@@ -18,6 +18,9 @@ import org.yaml.snakeyaml.error.YAMLException;
 public final class ProjectYaml {
 
     static final Pattern NAME = Pattern.compile("[a-z0-9][a-z0-9-]{0,39}");
+    private static final Pattern BRANCH = Pattern.compile("[A-Za-z0-9_][A-Za-z0-9._/-]{0,199}");
+    private static final Pattern COMPOSE_NAME = Pattern.compile("[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}");
+    private static final Pattern ISSUE_REPO = Pattern.compile("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+");
 
     private ProjectYaml() {
     }
@@ -67,6 +70,20 @@ public final class ProjectYaml {
                 }
                 if (s.repo() == null || s.repo().isBlank()) {
                     throw new IllegalArgumentException("서비스 '" + s.name() + "' 에 repo 가 없습니다");
+                }
+                // 아래 값들은 git·docker 명령 인자로 들어가므로 옵션(-로 시작)으로 해석될 수 있는 값은 막는다
+                if (s.repo().strip().startsWith("-") || s.repo().chars().anyMatch(Character::isWhitespace)) {
+                    throw new IllegalArgumentException("서비스 '" + s.name() + "' 의 repo 주소 형식이 아닙니다: " + s.repo());
+                }
+                if (!BRANCH.matcher(s.branch()).matches()) {
+                    throw new IllegalArgumentException("서비스 '" + s.name() + "' 의 branch 형식이 아닙니다: " + s.branch());
+                }
+                if (s.composeService() != null && !COMPOSE_NAME.matcher(s.composeService()).matches()) {
+                    throw new IllegalArgumentException(
+                            "서비스 '" + s.name() + "' 의 compose-service 형식이 아닙니다: " + s.composeService());
+                }
+                if (s.issueRepo() != null && !s.issueRepo().isBlank() && !ISSUE_REPO.matcher(s.issueRepo().strip()).matches()) {
+                    throw new IllegalArgumentException("서비스 '" + s.name() + "' 의 issue-repo 는 owner/repo 형식이어야 합니다");
                 }
                 services.add(s);
             }

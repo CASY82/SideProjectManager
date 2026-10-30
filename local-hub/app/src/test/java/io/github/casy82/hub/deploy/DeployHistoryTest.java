@@ -26,7 +26,7 @@ class DeployHistoryTest {
     void 배포_결과를_최신순으로_돌려준다() {
         HubProperties props = new HubProperties(base.toString(), "data", List.of("docker-compose.yml"), "test", "test",
                 List.of(), Duration.ofSeconds(60), Duration.ofMinutes(1), "",
-                new HubProperties.Issues(false, "", "", List.of("local-hub"), true));
+                new HubProperties.Issues(false, "", "", List.of("local-hub"), true), List.of());
         DeployHistory history = new DeployHistory(new ProjectStore(props, null, null));
         ServiceConfig api = new ServiceConfig("api", "r", "main", null, null);
         ServiceConfig web = new ServiceConfig("web", "r", "main", null, null);

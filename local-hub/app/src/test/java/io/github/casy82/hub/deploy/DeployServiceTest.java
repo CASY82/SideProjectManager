@@ -39,7 +39,7 @@ class DeployServiceTest {
     void setUp() throws Exception {
         HubProperties props = new HubProperties(base.toString(), "data", List.of("docker-compose.yml"), "test", "test",
                 List.of(), Duration.ofSeconds(60), Duration.ofMinutes(1), "",
-                new HubProperties.Issues(false, "", "", List.of("local-hub"), true));
+                new HubProperties.Issues(false, "", "", List.of("local-hub"), true), List.of());
         Path project = base.resolve("data/projects/shop");
         Files.createDirectories(project);
         Files.writeString(project.resolve("project.yml"), """
