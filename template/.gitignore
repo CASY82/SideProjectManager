@@ -1,0 +1,34 @@
+# 비밀 값
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# Java / Kotlin
+target/
+build/
+.gradle/
+out/
+
+# Node
+node_modules/
+dist/
+.next/
+coverage/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# 로그
+*.log
+logs/

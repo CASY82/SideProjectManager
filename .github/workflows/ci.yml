@@ -18,7 +18,14 @@ jobs:
         with:
           node-version: 22
       - run: node --test ".github/scripts/*.test.js"
-      - run: bash -n scripts/init-project.sh
+      - name: 초기화 스크립트로 새 프로젝트 만들기
+        run: |
+          scripts/init-project.sh "$RUNNER_TEMP/demo-app" --template --tasks
+          cd "$RUNNER_TEMP/demo-app"
+          head -1 README.md | grep -qx "# demo-app"
+          test -f CONTRIBUTING.md -a -f .github/workflows/ci.yml -a -f .github/workflows/due-reminders.yml
+          test -d .git
+          ! grep -rq "{{PROJECT_NAME}}\|{{TODAY}}" .
 
   local-hub:
     runs-on: ubuntu-latest

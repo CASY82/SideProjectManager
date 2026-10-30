@@ -1,0 +1,14 @@
+# 운영체제가 섞인 팀에서도 줄바꿈을 통일한다
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.sh text eol=lf
+mvnw text eol=lf
+gradlew text eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.jar binary
+*.zip binary
