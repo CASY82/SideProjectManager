@@ -115,6 +115,7 @@
           <li><a href="#hub-setup">설치와 실행</a></li>
           <li><a href="#hub-dashboard">대시보드</a></li>
           <li><a href="#hub-rules">배포 규칙</a></li>
+          <li><a href="#hub-issues">실패를 이슈로 알리기</a></li>
           <li><a href="#hub-api">API와 토큰</a></li>
           <li><a href="#hub-infra">공통 서비스</a></li>
           <li><a href="#hub-private">비공개 저장소</a></li>
@@ -125,6 +126,7 @@
           <li><a href="#tasks-what">자동으로 되는 일</a></li>
           <li><a href="#tasks-setup">처음 설정</a></li>
           <li><a href="#tasks-issue">이슈 쓰는 법</a></li>
+          <li><a href="#tasks-planner">기획자와 함께 쓰기</a></li>
           <li><a href="#tasks-labels">라벨</a></li>
           <li><a href="#tasks-messages">알림 예시</a></li>
           <li><a href="#tasks-board">칸반 보드</a></li>
@@ -142,14 +144,14 @@
     <header class="hero">
       <div class="eyebrow">SideProjectManager</div>
       <h1>사용 가이드</h1>
-      <p class="lead">클라우드나 유료 서비스 없이 토이·사이드 프로젝트를 굴리기 위한 세 가지 도구의 사용법입니다. 공용 PC 한 대에서 돌아가는 통합 서버, GitHub 이슈 기반 일정 관리, 그리고 새 프로젝트용 뼈대입니다.</p>
+      <p class="lead">클라우드나 유료 서비스 없이 토이·사이드 프로젝트를 굴리기 위한 세 가지 도구의 사용법입니다. 공용 PC 한 대에서 돌아가는 통합 서버, 기획자와 개발자가 함께 쓰는 GitHub 이슈 기반 일정 관리, 그리고 새 프로젝트용 뼈대입니다.</p>
     </header>
 
     <section id="overview">
       <h2>한눈에 보기</h2>
       <div class="overview">
-        <a href="#hub"><b>Local Hub</b><span>공용 PC에 DB 같은 공통 서비스와 팀원 서비스를 함께 띄우고, git에 새 커밋이 올라오면 자동으로 다시 빌드합니다. 실패하면 이전 커밋으로 되돌립니다.</span></a>
-        <a href="#tasks"><b>일정·할 일 자동 관리</b><span>GitHub Issues와 Actions로 상태·우선순위·마감 라벨, 매일 마감 알림, 주간 요약, Discord/Slack 알림을 돌립니다.</span></a>
+        <a href="#hub"><b>Local Hub</b><span>공용 PC에 DB 같은 공통 서비스와 팀원 서비스를 함께 띄우고, git에 새 커밋이 올라오면 자동으로 다시 빌드합니다. 실패하면 이전 커밋으로 되돌리고 GitHub 이슈로 알립니다.</span></a>
+        <a href="#tasks"><b>일정·할 일 자동 관리</b><span>GitHub Issues와 Actions로 기획과 할 일을 연결해 진행률을 보고, 상태·마감 라벨, 매일 마감 알림, 주간 요약, Discord/Slack 알림을 돌립니다.</span></a>
         <a href="#template"><b>프로젝트 템플릿</b><span>README, 기여 규칙, PR 양식, 기술 결정 기록, 언어를 알아서 감지하는 CI, Dependabot 설정을 한 번에 깔아 줍니다.</span></a>
       </div>
       <div class="table-wrap"><table>
@@ -233,10 +235,6 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
       SPRING_DATA_REDIS_HOST: redis</code></pre></li>
         <li><p>다시 실행하고 브라우저에서 <code>http://&lt;공용PC IP&gt;:8090</code>을 엽니다.</p></li>
       </ol>
-      <div class="note warn">
-        <strong>처음 실행할 때 공통 서비스가 안 뜰 수 있습니다</strong>
-        이번 가이드를 만들며 실제로 돌려 보니, 서비스 저장소를 아직 한 번도 clone하지 않은 첫 실행에서는 공통 서비스 기동이 <code>path ".../workspace/web" not found</code> 오류로 실패했습니다. 공통 서비스를 띄우는 명령이 팀원 서비스까지 함께 빌드하려 하기 때문입니다. 서비스 배포는 정상적으로 끝나므로, 첫 실행 뒤 Local Hub를 한 번 껐다 켜면 공통 서비스가 올라옵니다.
-      </div>
 
       <h3 id="hub-dashboard">대시보드</h3>
       <p>서비스마다 카드가 하나씩 있고, 화면은 5초마다 저절로 새로고침됩니다. 카드에는 상태, 감시 중인 브랜치, 지금 떠 있는 커밋(해시, 메시지, 작성자), 마지막 확인·배포 시각이 나옵니다. 아래쪽 <b>컨테이너 상태</b>는 공통 서비스를 포함한 Compose 프로젝트 전체의 <code>docker compose ps</code> 결과입니다.</p>
@@ -283,6 +281,10 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
         <figcaption><b>배포 출력</b>을 펼치면 실패 원인이 바로 보입니다. 이 예에서는 Dockerfile의 <code>RUN npm run build</code>가 <code>npm: not found</code>로 실패했습니다. 출력은 최근 200줄까지 남습니다.</figcaption>
       </figure>
       <figure>
+        <img src="img/02c-dashboard-recovered.png" alt="web이 고친 커밋으로 다시 RUNNING이 된 대시보드" loading="lazy">
+        <figcaption>이준호 님이 문제를 고친 커밋 <code>895c922</code>를 푸시하자 web이 다시 <span class="badge s-RUNNING">RUNNING</span>이 되고 실패 표시가 사라졌습니다.</figcaption>
+      </figure>
+      <figure>
         <img src="img/04-container-logs.png" alt="worker 카드의 컨테이너 로그를 펼친 화면. 3초마다 메일 발송 큐 확인 로그가 찍혀 있다." loading="lazy">
         <figcaption><b>컨테이너 로그</b>는 <code>docker compose logs --tail 200</code> 결과입니다. 공용 PC에 접속하지 않고도 팀원 서비스의 로그를 볼 수 있습니다.</figcaption>
       </figure>
@@ -307,6 +309,41 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
         <li><code>--no-deps</code>라서 한 서비스를 다시 띄워도 DB 같은 다른 컨테이너는 건드리지 않습니다.</li>
         <li><code>workspace/</code>는 배포 전용입니다. 배포할 때 <code>git reset --hard</code>를 하므로 그 안에서 코드를 직접 고치지 마세요.</li>
         <li>같은 서비스의 배포는 한 번에 하나만 돕니다. 배포 중에 버튼을 다시 눌러도 겹쳐 돌지 않습니다.</li>
+      </ul>
+
+      <h3 id="hub-issues">실패를 GitHub 이슈로 알리기</h3>
+      <p>켜 두면 배포가 실패하거나 되돌려질 때 그 서비스 저장소에 이슈가 자동으로 올라가고, 커밋 작성자가 멘션됩니다. 다음 배포가 성공하면 댓글을 남기고 이슈를 닫습니다. 대시보드를 보고 있지 않아도 실패를 놓치지 않게 하는 기능입니다.</p>
+<pre><code># hub.yml
+hub:
+  issues:
+    enabled: true
+    token: ${HUB_GITHUB_TOKEN:}       # 토큰은 파일에 적지 말고 환경 변수로
+    labels: [local-hub, "type: bug"]  # 첫 번째 라벨로 기존 이슈를 찾음
+    include-output: true              # 빌드 출력 끝부분(80줄)을 이슈에 넣을지
+  services:
+    - name: web
+      repo: git@github.com:your-team/web.git
+      issue-repo: your-team/web       # 비우면 repo 주소에서 알아냄</code></pre>
+<pre><code>export HUB_GITHUB_TOKEN=github_pat_...   # Windows: set HUB_GITHUB_TOKEN=...
+./hub.sh</code></pre>
+      <div class="table-wrap"><table>
+        <thead><tr><th>상황</th><th>이슈에 생기는 일</th></tr></thead>
+        <tbody>
+          <tr><td>배포 실패·되돌림</td><td><code>[Local Hub] &lt;서비스&gt; 배포 실패</code> 이슈 생성. 실패한 커밋, 상태, 빌드 출력 끝부분, 커밋 작성자 멘션</td></tr>
+          <tr><td>이슈가 열린 채로 다른 커밋도 실패</td><td>같은 이슈에 댓글 추가 (서비스마다 이슈는 하나)</td></tr>
+          <tr><td>같은 실패가 계속됨</td><td>아무것도 하지 않음. 매 주기마다 댓글이 쌓이지 않음</td></tr>
+          <tr><td>다음 배포 성공</td><td>"정상으로 돌아왔어요" 댓글을 남기고 닫음. Local Hub를 재시작한 뒤의 첫 성공도 포함</td></tr>
+        </tbody>
+      </table></div>
+      <figure>
+        <img src="img/14-hub-failure-issue.png" alt="[Local Hub] web 배포 실패 이슈 미리보기. 상태, 브랜치, 실패한 커밋 표와 작성자 멘션, 빌드 출력 접기, 정상화 댓글이 있다." loading="lazy">
+        <figcaption>위 대시보드 예시에서 Local Hub가 실제로 보낸 이슈 본문과 댓글입니다. 실제 GitHub 대신 테스트용 가짜 GitHub API로 받아서 그렸기 때문에 화면 모양은 GitHub와 다르고, 작성자 계정 <code>@junho-lee</code>도 예시입니다.</figcaption>
+      </figure>
+      <ul>
+        <li>토큰: GitHub <b>Settings → Developer settings → Fine-grained tokens</b>에서 대상 저장소를 고르고 <b>Issues: Read and write</b>, <b>Contents: Read-only</b>로 만듭니다. Contents 권한은 커밋 작성자의 GitHub 계정을 찾는 데만 씁니다.</li>
+        <li>이슈에 <code>type: bug</code> 라벨이 붙으므로 아래 일정 자동화의 마감 알림과 주간 요약에도 그대로 잡힙니다.</li>
+        <li>공개 저장소라면 빌드 출력에 비밀 값이 찍히지 않는지 확인하고, 걱정되면 <code>include-output: false</code>로 둡니다.</li>
+        <li>GitHub에 연결할 수 없어도 배포는 그대로 진행되고, 다음 실패 때 다시 시도합니다.</li>
       </ul>
 
       <h3 id="hub-api">API와 토큰</h3>
@@ -367,7 +404,9 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
           <tr><td>PR 본문에 <code>closes #12</code></td><td>12번 이슈를 <code>status: review</code>로. PR이 머지 없이 닫히면 원래대로</td><td><code>issue-automation.yml</code></td></tr>
           <tr><td>이슈가 닫힐 때</td><td>상태·마감 라벨 정리</td><td><code>issue-automation.yml</code></td></tr>
           <tr><td>매일 오전 9시 (KST)</td><td>마감 라벨 갱신, 새로 마감이 지난 이슈에 담당자 멘션 댓글, Discord/Slack으로 요약</td><td><code>due-reminders.yml</code></td></tr>
-          <tr><td>매주 월요일 오전 9시 (KST)</td><td>지난주 완료, 마감 지남, 담당자별 진행 중 목록을 "주간 요약" 이슈로 만들고 지난 요약은 닫음</td><td><code>weekly-summary.yml</code></td></tr>
+          <tr><td>매주 월요일 오전 9시 (KST)</td><td>지난주 완료, 마감 지남, 기획별 진행률, 담당자별 진행 중 목록을 "주간 요약" 이슈로 만들고 지난 요약은 닫음</td><td><code>weekly-summary.yml</code></td></tr>
+          <tr><td>할 일에 "관련 기획"을 적으면</td><td>그 기획 이슈의 하위 이슈로 연결 (기획 화면에 진행률 막대가 생김). 기획 번호를 바꾸면 옮김</td><td><code>issue-automation.yml</code></td></tr>
+          <tr><td>기획에 연결된 할 일이 모두 닫히면</td><td>기획 작성자를 멘션해 "의도대로 됐는지 확인해 주세요" 댓글</td><td><code>issue-automation.yml</code></td></tr>
           <tr><td><code>labels.json</code>이 바뀔 때</td><td>저장소 라벨 생성·갱신</td><td><code>labels.yml</code></td></tr>
         </tbody>
       </table></div>
@@ -375,7 +414,7 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
       <h3 id="tasks-setup">처음 설정 (5분)</h3>
       <ol class="steps">
         <li><p><code>.github/</code>를 프로젝트에 복사합니다: <code>scripts/init-project.sh ../my-project --tasks</code></p></li>
-        <li><p>GitHub에 푸시한 뒤 <b>Actions</b> 탭 → <b>라벨 동기화</b> → <b>Run workflow</b>를 한 번 누릅니다. 라벨 11개가 만들어집니다.</p></li>
+        <li><p>GitHub에 푸시한 뒤 <b>Actions</b> 탭 → <b>라벨 동기화</b> → <b>Run workflow</b>를 한 번 누릅니다. 라벨 13개가 만들어집니다.</p></li>
         <li><p>(선택) 채팅방 알림을 받으려면 <b>Settings → Secrets and variables → Actions → New repository secret</b>에 추가합니다.</p>
           <ul>
             <li>Discord: 채널 설정 → 연동 → 웹후크에서 만든 URL을 <code>DISCORD_WEBHOOK_URL</code>로</li>
@@ -386,22 +425,62 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
       </ol>
 
       <h3 id="tasks-issue">이슈 쓰는 법</h3>
-      <p><b>New issue</b>에서 <b>할 일</b> 또는 <b>버그</b> 양식을 고르면 마감일과 우선순위 칸이 있습니다.</p>
+      <p><b>New issue</b>에서 양식을 고릅니다. 할 일과 버그 양식에는 마감일, 우선순위, 그리고 이 일이 속한 기획을 적는 <b>관련 기획</b> 칸이 있습니다.</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>양식</th><th>칸</th><th>자동 라벨</th></tr></thead>
+        <thead><tr><th>양식</th><th>누가</th><th>칸</th><th>자동 라벨</th></tr></thead>
         <tbody>
-          <tr><td>할 일</td><td>내용(필수), 완료 조건, 마감일, 우선순위(P0 긴급 · P1 높음 · P2 보통, 기본 P2)</td><td><code>type: task</code></td></tr>
-          <tr><td>버그</td><td>무슨 일이 있었나요, 재현 방법, 마감일, 우선순위</td><td><code>type: bug</code></td></tr>
+          <tr><td>기획</td><td>기획자</td><td>기획 의도(필수), 목표와 성공 기준(필수), 대상 사용자, 주요 내용(필수), 이번에 하지 않는 것, 참고 자료, 마감일, 우선순위(기본 P1)</td><td><code>type: planning</code></td></tr>
+          <tr><td>할 일</td><td>개발자</td><td>내용(필수), 완료 조건, 관련 기획, 마감일, 우선순위(P0 긴급 · P1 높음 · P2 보통, 기본 P2)</td><td><code>type: task</code></td></tr>
+          <tr><td>버그</td><td>누구나</td><td>무슨 일이 있었나요, 재현 방법, 관련 기획, 마감일, 우선순위</td><td><code>type: bug</code></td></tr>
         </tbody>
       </table></div>
+      <figure>
+        <img src="img/11-form-task.png" alt="할 일 양식 미리보기. 내용, 완료 조건, 관련 기획(#5), 마감일, 우선순위 칸이 채워져 있다." loading="lazy">
+        <figcaption>할 일 양식을 <code>task.yml</code>로 그린 미리보기입니다(실제 GitHub 화면 아님). 관련 기획 칸에 <code>#5</code>를 적으면 5번 기획 아래로 연결됩니다.</figcaption>
+      </figure>
       <p>양식 없이 쓴 이슈도 본문에 이런 줄이 있으면 마감일로 인식합니다. <code>마감</code>, <code>due</code>로 써도 되고 <code>2026.11.15</code>, <code>2026/11/5</code> 형식도 됩니다. 마감일을 바꾸려면 본문만 고치면 라벨이 바로 다시 계산됩니다.</p>
-<pre><code>마감일: 2026-11-15</code></pre>
+<pre><code>마감일: 2026-11-15
+기획: #5</code></pre>
+      <p><code>기획:</code> 줄(또는 <code>관련 기획:</code>)은 기획 번호를 적는 줄로, <code>#5</code>, <code>5</code>, 이슈 주소 모두 인식합니다.</p>
+
+      <h3 id="tasks-planner">기획자와 함께 쓰기</h3>
+      <p>기획자는 코드를 몰라도 GitHub 이슈만으로 참여할 수 있습니다. 기획자가 왜 무엇을 만드는지 기획 이슈로 쓰고, 개발자가 그걸 할 일로 나눠 연결하면, 기획 이슈에서 진행률을 보고 끝나면 확인 요청을 받습니다.</p>
+<pre><code>기획자: 기획 이슈 작성 (#5)          개발자: 할 일 이슈 작성, "관련 기획" 에 #5
+   기획 의도 · 목표와 성공 기준   ──▶     #12 온보딩 안내 화면  ┐
+   주요 내용 · 하지 않는 것                #13 건너뛰기 처리     ├─ #5 아래 하위 이슈로 자동 연결
+   참고 자료 · 마감일                      #14 첫 글쓰기 이동    ┘
+        ▲                                      │ 모두 닫히면
+        └──── "@기획자 확인해 주세요" 댓글 ◀────┘</code></pre>
+      <ol class="steps">
+        <li><p><b>기획자</b>가 New issue → <b>기획</b> 양식으로 씁니다. 기획 의도, 목표와 성공 기준, 주요 내용은 필수이고, 이번에 하지 않는 것과 참고 자료(Figma 링크, 이미지를 끌어다 놓기)를 적으면 개발 일정이 덜 흔들립니다.</p>
+          <figure>
+            <img src="img/10-form-planning.png" alt="기획 양식 미리보기. 기획 의도, 목표와 성공 기준, 대상 사용자, 주요 내용, 이번에 하지 않는 것, 참고 자료, 마감일, 우선순위 칸에 예시가 채워져 있다." loading="lazy">
+            <figcaption>기획 양식을 <code>planning.yml</code>로 그린 미리보기입니다(실제 GitHub 화면 아님). 칸에 적힌 내용은 예시입니다.</figcaption>
+          </figure></li>
+        <li><p><b>개발자</b>가 기획을 읽고 일을 나눠 <b>할 일</b>을 만들며, <b>관련 기획</b> 칸에 기획 번호를 적습니다. 그러면 할 일이 기획의 하위 이슈로 붙고, 기획 이슈에 진행률 막대가 생깁니다. 질문은 기획 이슈 댓글로 주고받으면 기록이 한곳에 모입니다.</p>
+          <figure>
+            <img src="img/12-plan-progress.png" alt="기획 이슈 #5 미리보기. 본문 아래 하위 이슈 3개 중 2개 완료로 진행률 막대가 보인다." loading="lazy">
+            <figcaption>할 일 3개가 연결되고 2개가 끝난 기획 이슈의 미리보기입니다(실제 GitHub 화면 아님). 실제로는 GitHub의 하위 이슈(sub-issue) 영역에 같은 정보가 나옵니다.</figcaption>
+          </figure></li>
+        <li><p>연결된 할 일이 모두 닫히면 자동화가 기획 작성자를 멘션해 확인을 요청합니다. 의도대로 됐으면 기획자가 기획 이슈를 닫습니다. "계획 없음"으로 닫은 할 일은 완료로 치지 않습니다.</p>
+          <figure>
+            <img src="img/13-plan-done.png" alt="하위 이슈 3/3 완료와 기획 작성자에게 확인을 요청하는 자동 댓글 미리보기" loading="lazy">
+            <figcaption>댓글 문구는 <code>triage.js</code>가 실제로 다는 내용이고, 화면은 미리보기입니다.</figcaption>
+          </figure></li>
+        <li><p>매주 월요일 주간 요약의 <b>기획 진행률</b>에 기획마다 <code>완료/전체</code>가 나옵니다(<a href="#tasks-messages">알림 예시</a> 참고).</p></li>
+      </ol>
+      <div class="note">
+        <strong>기획자 권한은 Triage면 충분합니다</strong>
+        저장소 <b>Settings → Collaborators → Add people</b>에서 역할을 <b>Triage</b>로 고르세요. 이슈 작성, 라벨, 닫기는 되고 코드는 고칠 수 없습니다. 비공개 저장소에서도 무료입니다.
+      </div>
+      <p>하위 이슈 기능을 쓸 수 없는 환경이면 기획 이슈에 "할 일 #12 가 이 기획에 연결됐어요" 댓글로 대신 남깁니다. 관련 기획 번호가 없는 이슈를 가리키면 할 일 이슈에 안내 댓글이 달립니다.</p>
 
       <h3 id="tasks-labels">라벨</h3>
       <p><code>.github/labels.json</code>에 정의된 라벨입니다. 상태·우선순위·마감 라벨은 그룹마다 하나만 남도록 자동으로 맞춥니다.</p>
       <div class="labels" aria-label="라벨 목록">
         <span class="chip" style="background:#1d76db;color:#fff">type: task</span>
         <span class="chip" style="background:#d73a4a;color:#fff">type: bug</span>
+        <span class="chip" style="background:#8250df;color:#fff">type: planning</span>
         <span class="chip" style="background:#ededed;color:#1b2226">status: todo</span>
         <span class="chip" style="background:#fbca04;color:#1b2226">status: in-progress</span>
         <span class="chip" style="background:#0e8a16;color:#fff">status: review</span>
@@ -411,48 +490,26 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
         <span class="chip" style="background:#f9d0c4;color:#1b2226">due-soon</span>
         <span class="chip" style="background:#b60205;color:#fff">overdue</span>
         <span class="chip" style="background:#5319e7;color:#fff">weekly-summary</span>
+        <span class="chip" style="background:#0052cc;color:#fff">local-hub</span>
       </div>
       <ul>
         <li><code>due-soon</code>: 마감 2일 이내 (오늘 포함)</li>
         <li><code>overdue</code>: 마감일이 지남. 처음 붙을 때 담당자를 멘션하는 댓글이 한 번 달림</li>
         <li><code>status: review</code>: 같은 저장소 브랜치에서 올린 PR이 이슈를 <code>closes</code>로 연결했을 때</li>
+        <li><code>type: planning</code>: 기획 양식으로 쓴 이슈. 주간 요약의 담당자별 목록에서는 빠지고 기획 진행률에 나옴</li>
+        <li><code>local-hub</code>: Local Hub가 자동으로 올린 배포 실패 이슈</li>
       </ul>
 
       <h3 id="tasks-messages">알림 예시</h3>
-      <p>아래는 저장소의 알림 스크립트(<code>.github/scripts/lib.js</code>)에 예시 이슈를 넣어 실제로 만든 본문입니다. 2026-11-02(월) 기준이고, 이슈와 담당자는 예시입니다. Discord/Slack에는 이 본문 끝에 이슈 목록 링크가 붙어 그대로 올라갑니다.</p>
-      <div class="two">
-        <div>
-          <div class="sample-label">매일 마감 알림</div>
-<pre><code>**마감 알림 (2026-11-02)**
-
-마감 지남 1건
-- #12 로그인 화면 구현 (@minji) · 2026-10-31, 2일 지남
-
-마감 임박 2건
-- #15 회원 가입 API (@junho) · 2026-11-02, 오늘 마감
-- #18 배포 문서 정리 (담당자 없음) · 2026-11-04, 2일 남음</code></pre>
-          <p>알릴 이슈가 없는 날은 아무것도 보내지 않습니다.</p>
-        </div>
-        <div>
-          <div class="sample-label">월요일 주간 요약 이슈</div>
-<pre><code>## 주간 요약 (2026-10-26 ~ 2026-11-02)
-
-완료 2건 · 열린 이슈 4건
-
-### 이번 주 완료
-- #9 DB 스키마 설계 (@minji)
-- #11 CI 설정 (@seoyeon)
-
-### 마감 지남
-- #12 로그인 화면 구현 (@minji) · 마감 2026-10-31
-
-### 담당자별 진행 중
-- @junho: #15
-- @minji: #12
-- @seoyeon: #20
-- 담당자 없음: #18</code></pre>
-        </div>
-      </div>
+      <p>아래 두 화면의 본문은 저장소의 알림 스크립트(<code>.github/scripts/lib.js</code>)에 예시 이슈를 넣어 실제로 만든 것입니다. 2026-11-02(월) 기준이고, 이슈와 사람은 예시입니다. 화면 모양은 미리보기이고 실제 GitHub나 채팅 앱 화면은 아닙니다.</p>
+      <figure>
+        <img src="img/16-chat-reminder.png" alt="채팅방에 올라온 마감 알림 미리보기. 마감 지남 1건, 마감 임박 2건과 이슈 목록 링크" loading="lazy">
+        <figcaption>매일 오전 9시 Discord/Slack에 올라가는 마감 알림. 끝에 마감 지남·임박 이슈 목록 링크가 붙습니다. 알릴 이슈가 없는 날은 보내지 않습니다.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/15-weekly-summary.png" alt="주간 요약 이슈 미리보기. 이번 주 완료, 마감 지남, 기획 진행률, 담당자별 진행 중 목록" loading="lazy">
+        <figcaption>월요일 주간 요약 이슈. <b>기획 진행률</b>에 "#5 첫 방문자 온보딩: 2/3 완료"처럼 기획마다 연결된 할 일의 완료 수가 나옵니다. 기획 이슈 자체는 담당자별 목록에서 빠집니다.</figcaption>
+      </figure>
       <p>주간 요약은 <code>주간 요약 2026-11-02</code> 같은 제목의 이슈로 만들어지고 <code>weekly-summary</code> 라벨이 붙습니다. "계획 없음(Close as not planned)"으로 닫은 이슈는 완료 목록에서 빠집니다.</p>
 
       <h3 id="tasks-board">칸반 보드로 보기</h3>
@@ -491,7 +548,7 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
         <thead><tr><th>파일</th><th>내용</th></tr></thead>
         <tbody>
           <tr><td><code>README.md</code></td><td>한 줄 소개, 목표, 팀, 기술 스택, 실행 방법, 일정 칸</td></tr>
-          <tr><td><code>CONTRIBUTING.md</code></td><td>이슈로 일 시작하기, 브랜치 이름(<code>feat/12-login-api</code>), Conventional Commits, PR은 Squash and merge, 24시간 안에 첫 리뷰, 제안은 <code>nit:</code></td></tr>
+          <tr><td><code>CONTRIBUTING.md</code></td><td>기획자가 기획 이슈를 쓰고 개발자가 관련 기획을 적어 할 일로 나누는 흐름, 브랜치 이름(<code>feat/12-login-api</code>), Conventional Commits, PR은 Squash and merge, 24시간 안에 첫 리뷰, 제안은 <code>nit:</code></td></tr>
           <tr><td><code>.github/pull_request_template.md</code></td><td>무엇을 했나요(<code>closes #</code>), 어떻게 확인했나요, 리뷰어가 봐 줬으면 하는 부분</td></tr>
           <tr><td><code>.github/workflows/ci.yml</code></td><td><code>pom.xml</code>, Gradle, <code>package.json</code>, <code>requirements.txt</code>/<code>pyproject.toml</code>을 감지해 맞는 빌드·테스트를 돌림. 빌드 파일이 없으면 건너뜀</td></tr>
           <tr><td><code>.github/dependabot.yml</code></td><td>GitHub Actions 버전을 매주 확인해 업데이트 PR. 주석을 풀면 maven/gradle/npm/pip 라이브러리도</td></tr>
@@ -529,7 +586,7 @@ SideProjectManager/scripts/init-project.sh ../my-project --hub        # Local Hu
 Local Hub 복사
 git 저장소를 새로 만들었습니다 (main 브랜치)
 
-완료: 55개 복사, 0개 건너뜀 → ./my-project
+완료: 63개 복사, 0개 건너뜀 → ./my-project
 
 다음 할 일
   - README.md 의 소개·팀·기술 스택 채우기
@@ -540,13 +597,13 @@ git 저장소를 새로 만들었습니다 (main 브랜치)
       <div class="sample-label">만들어지는 구조</div>
 <pre><code>my-project/
 ├── README.md               소개·팀·기술 스택·실행 방법·일정 (프로젝트 이름 자동 입력)
-├── CONTRIBUTING.md         브랜치·커밋·PR·리뷰 규칙
+├── CONTRIBUTING.md         기획→할 일 흐름, 브랜치·커밋·PR·리뷰 규칙
 ├── docs/decisions/         기술 결정 기록 (양식 포함)
 ├── .github/
 │   ├── workflows/ci.yml    언어를 감지해 빌드·테스트
 │   ├── workflows/...       이슈 정리, 마감 알림, 주간 요약, 라벨 동기화
 │   ├── scripts/            자동화 로직 (JavaScript)
-│   ├── ISSUE_TEMPLATE/     할 일·버그 양식
+│   ├── ISSUE_TEMPLATE/     기획·할 일·버그 양식
 │   ├── labels.json
 │   ├── pull_request_template.md
 │   └── dependabot.yml
@@ -556,19 +613,26 @@ git 저장소를 새로 만들었습니다 (main 브랜치)
 
     <section id="dev">
       <h2>고치고 테스트하기</h2>
-<pre><code>node --test ".github/scripts/*.test.js"     # 일정 자동화 스크립트 (20개 테스트)
-(cd local-hub/app &amp;&amp; ./mvnw test)            # Local Hub 단위 테스트
+<pre><code>node --test ".github/scripts/*.test.js"     # 일정 자동화 스크립트 (27개 테스트)
+(cd local-hub/app &amp;&amp; ./mvnw test)            # Local Hub 단위 테스트 (18개)
 (cd local-hub/app &amp;&amp; ./mvnw package)         # target/local-hub.jar</code></pre>
       <p>워크플로는 <code>actions/github-script</code>로 <code>.github/scripts/</code>의 파일을 불러오기만 하므로, 로직은 거기서 고치고 위 테스트로 확인합니다. PR을 올리면 CI가 두 테스트를 모두 돌립니다.</p>
     </section>
 
     <section id="shots">
       <h2>스크린샷에 대해</h2>
-      <p>Local Hub 화면은 이 가이드를 만들면서 실제로 띄워 찍었습니다. 예시 저장소 세 개(api, web, worker)를 등록하고 Postgres, Redis, Mailpit을 공통 서비스로 올린 뒤, 정상 커밋과 빌드가 깨지는 커밋을 푸시해 자동 배포와 되돌리기가 일어나는 모습을 담았습니다. 커밋 작성자 이름은 예시입니다.</p>
-      <p>GitHub 쪽 화면(이슈 양식, 라벨이 붙은 이슈, Actions 실행, Discord 메시지)은 실제 저장소에 워크플로가 머지되고 로그인된 브라우저가 있어야 찍을 수 있어 넣지 않았습니다. 대신 <a href="#tasks-messages">알림 예시</a>는 저장소의 스크립트로 직접 만든 결과를 실었습니다.</p>
+      <p>이 가이드의 화면은 두 종류입니다.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>종류</th><th>화면</th><th>어떻게 만들었나</th></tr></thead>
+        <tbody>
+          <tr><td><b>실제 화면</b></td><td>Local Hub 대시보드 7장, Mailpit</td><td>Local Hub를 실제로 띄워 찍었습니다. 예시 저장소 세 개(api, web, worker)와 Postgres, Redis, Mailpit을 올리고 정상 커밋, 빌드가 깨지는 커밋, 고친 커밋을 차례로 푸시했습니다. 커밋 작성자 이름은 예시입니다.</td></tr>
+          <tr><td><b>미리보기</b> (실제 GitHub 화면 아님)</td><td>기획·할 일 양식, 기획 진행률, 기획 완료 댓글, 배포 실패 이슈, 주간 요약, 채팅 알림</td><td>워크플로가 실제 저장소에서 돌아야 찍을 수 있어 직접 그렸습니다. 양식은 저장소의 YAML 파일에서, 본문과 댓글 문구는 실제 스크립트 출력에서 가져왔습니다. 배포 실패 이슈는 Local Hub가 테스트용 가짜 GitHub API로 실제로 보낸 내용입니다. 이미지 위쪽 노란 표시로 구분됩니다.</td></tr>
+        </tbody>
+      </table></div>
+      <p>PR #1과 #2를 머지한 뒤 실제 저장소에서 기획 이슈를 하나 만들어 보면 GitHub의 실제 화면으로 바꿔 넣을 수 있습니다.</p>
     </section>
 
-    <footer>SideProjectManager · 2026-10-30 기준 · Local Hub(PR #1)와 일정 자동화·템플릿(PR #2) 내용</footer>
+    <footer>SideProjectManager · 2026-10-30 기준 · Local Hub(PR #1)와 일정 자동화·기획자 기능·템플릿(PR #2) 내용</footer>
   </main>
 </div>
 <!--BODY-END-->
